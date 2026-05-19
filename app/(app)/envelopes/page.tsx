@@ -1,58 +1,63 @@
-export default function EnvelopesPage() {
-  return (
-    <div className="p-4">
-      <header className="flex items-center justify-between py-2 mb-6">
-        <h1 className="text-xl font-semibold text-brand-text">Envelopes</h1>
-        <button className="w-10 h-10 flex items-center justify-center rounded-full bg-brand-surface border border-brand-border text-brand-accent active:opacity-70">
-          <PlusIcon />
-        </button>
-      </header>
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import type { FxRates } from "@/lib/currency";
+import type { Category, Envelope } from "@/lib/types";
+import EnvelopeDashboard from "@/components/envelopes/EnvelopeDashboard";
 
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="w-16 h-16 bg-brand-surface rounded-2xl flex items-center justify-center mb-4">
-          <EnvelopeIcon />
-        </div>
-        <p className="text-brand-text font-medium mb-1">No envelopes yet</p>
-        <p className="text-brand-text-muted text-sm">
-          Tap + to create your first envelope
-        </p>
-      </div>
-    </div>
-  );
-}
+export default async function EnvelopesPage() {
+  const supabase = createClient();
 
-function PlusIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="w-5 h-5"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 4.5v15m7.5-7.5h-15"
-      />
-    </svg>
-  );
-}
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-function EnvelopeIcon() {
+  // Fetch user profile (display_currency + household linkage)
+  const { data: profile } = await supabase
+    .from("users")
+    .select("display_currency, household_id")
+    .eq("id", user.id)
+    .single();
+
+  // User exists in auth but not yet in users table (not onboarded)
+  if (!profile) redirect("/settings");
+
+  // Latest fx_rates — one row per pair, ordered newest first
+  const { data: rateRows } = await supabase
+    .from("fx_rates")
+    .select("currency_pair, rate")
+    .order("fetched_at", { ascending: false });
+
+  // Build FxRates map, keeping only the latest rate per pair
+  const fxRates: FxRates = {};
+  for (const row of rateRows ?? []) {
+    if (!fxRates[row.currency_pair]) {
+      fxRates[row.currency_pair] = Number(row.rate);
+    }
+  }
+
+  const { data: categories } = await supabase
+    .from("categories")
+    .select("id, household_id, name, sort_order, created_at")
+    .order("sort_order");
+
+  // Fetch top-level envelopes only (no trip sub-envelopes)
+  const { data: envelopes } = await supabase
+    .from("envelopes")
+    .select(
+      "id, household_id, category_id, trip_id, parent_envelope_id, name, budget_amount, budget_currency, sort_order, created_at"
+    )
+    .is("trip_id", null)
+    .is("parent_envelope_id", null)
+    .order("sort_order");
+
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      className="w-8 h-8 text-brand-muted"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
-      />
-    </svg>
+    <EnvelopeDashboard
+      displayCurrency={profile.display_currency}
+      fxRates={fxRates}
+      categories={(categories as Category[]) ?? []}
+      initialEnvelopes={(envelopes as Envelope[]) ?? []}
+      householdId={profile.household_id}
+    />
   );
 }
