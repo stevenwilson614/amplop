@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { convert, format, type FxRates } from "@/lib/currency";
 import type { Category, Envelope } from "@/lib/types";
@@ -12,6 +13,7 @@ interface Props {
   categories: Category[];
   initialEnvelopes: Envelope[];
   householdId: string;
+  spentIdr: Record<string, number>;
 }
 
 export default function EnvelopeDashboard({
@@ -20,6 +22,7 @@ export default function EnvelopeDashboard({
   categories,
   initialEnvelopes,
   householdId,
+  spentIdr,
 }: Props) {
   const [envelopes, setEnvelopes] = useState<Envelope[]>(initialEnvelopes);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -43,9 +46,7 @@ export default function EnvelopeDashboard({
 
   function handleSaved(envelope: Envelope, isNew: boolean) {
     setEnvelopes((prev) =>
-      isNew
-        ? [...prev, envelope]
-        : prev.map((e) => (e.id === envelope.id ? envelope : e))
+      isNew ? [...prev, envelope] : prev.map((e) => (e.id === envelope.id ? envelope : e))
     );
     closeSheet();
   }
@@ -53,13 +54,10 @@ export default function EnvelopeDashboard({
   async function handleDelete(id: string) {
     const supabase = createClient();
     const { error } = await supabase.from("envelopes").delete().eq("id", id);
-    if (!error) {
-      setEnvelopes((prev) => prev.filter((e) => e.id !== id));
-    }
+    if (!error) setEnvelopes((prev) => prev.filter((e) => e.id !== id));
     setDeleteConfirm(null);
   }
 
-  // Group envelopes by category, preserving category sort order
   const grouped = categories
     .map((cat) => ({
       category: cat,
@@ -76,26 +74,32 @@ export default function EnvelopeDashboard({
 
   return (
     <div className="p-4 pb-6">
-      {/* Header */}
-      <header className="flex items-center justify-between py-2 mb-2">
+      <header className="flex items-center justify-between py-2 mb-1">
         <h1 className="text-xl font-semibold text-brand-text">Envelopes</h1>
-        <button
-          onClick={openCreate}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-brand-surface border border-brand-border text-brand-accent active:opacity-70"
-          aria-label="New envelope"
-        >
-          <PlusIcon />
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/transactions/new"
+            className="h-10 px-3 flex items-center gap-1.5 rounded-full bg-brand-accent text-white text-sm font-medium active:opacity-80"
+          >
+            <PlusIcon />
+            Add
+          </Link>
+          <button
+            onClick={openCreate}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-brand-surface border border-brand-border text-brand-accent active:opacity-70"
+            aria-label="New envelope"
+          >
+            <EnvelopeAddIcon />
+          </button>
+        </div>
       </header>
 
-      {/* Total budget summary */}
       {envelopes.length > 0 && (
-        <p className="text-brand-text-muted text-sm mb-6">
-          {format(totalBudget, displayCurrency)} budgeted total
+        <p className="text-brand-text-muted text-sm mb-5">
+          {format(totalBudget, displayCurrency)} budgeted
         </p>
       )}
 
-      {/* Empty state */}
       {envelopes.length === 0 && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-16 h-16 bg-brand-surface rounded-2xl flex items-center justify-center mb-4">
@@ -103,12 +107,11 @@ export default function EnvelopeDashboard({
           </div>
           <p className="text-brand-text font-medium mb-1">No envelopes yet</p>
           <p className="text-brand-text-muted text-sm">
-            Tap + to create your first envelope
+            Tap the envelope icon to create your first
           </p>
         </div>
       )}
 
-      {/* Categorised groups */}
       <div className="space-y-6">
         {grouped.map(({ category, envelopes: catEnvelopes }) => (
           <section key={category.id}>
@@ -122,6 +125,7 @@ export default function EnvelopeDashboard({
                   envelope={envelope}
                   displayCurrency={displayCurrency}
                   fxRates={fxRates}
+                  spentIdr={spentIdr[envelope.id] ?? 0}
                   confirmingDelete={deleteConfirm === envelope.id}
                   onEdit={() => openEdit(envelope)}
                   onDeleteRequest={() => setDeleteConfirm(envelope.id)}
@@ -145,6 +149,7 @@ export default function EnvelopeDashboard({
                   envelope={envelope}
                   displayCurrency={displayCurrency}
                   fxRates={fxRates}
+                  spentIdr={spentIdr[envelope.id] ?? 0}
                   confirmingDelete={deleteConfirm === envelope.id}
                   onEdit={() => openEdit(envelope)}
                   onDeleteRequest={() => setDeleteConfirm(envelope.id)}
@@ -157,7 +162,6 @@ export default function EnvelopeDashboard({
         )}
       </div>
 
-      {/* Create / Edit sheet — key forces remount when target envelope changes */}
       <EnvelopeSheet
         key={`${sheetOpen}-${editing?.id ?? "new"}`}
         open={sheetOpen}
@@ -177,6 +181,7 @@ interface CardProps {
   envelope: Envelope;
   displayCurrency: string;
   fxRates: FxRates;
+  spentIdr: number;
   confirmingDelete: boolean;
   onEdit: () => void;
   onDeleteRequest: () => void;
@@ -188,29 +193,22 @@ function EnvelopeCard({
   envelope,
   displayCurrency,
   fxRates,
+  spentIdr,
   confirmingDelete,
   onEdit,
   onDeleteRequest,
   onDeleteConfirm,
   onDeleteCancel,
 }: CardProps) {
-  // Convert budget to display currency using current FX rate
-  const budgetDisplay = convert(
-    envelope.budget_amount,
-    envelope.budget_currency,
-    displayCurrency,
-    fxRates
-  );
-
-  // Phase 3 will sum transaction_allocations here; for now spent = 0
-  const spentDisplay = 0;
+  const budgetDisplay = convert(envelope.budget_amount, envelope.budget_currency, displayCurrency, fxRates);
+  // Historical spend in IDR → converted to display_currency at current rate
+  const spentDisplay = convert(spentIdr, "IDR", displayCurrency, fxRates);
   const remainingDisplay = budgetDisplay - spentDisplay;
   const pct = budgetDisplay > 0 ? (spentDisplay / budgetDisplay) * 100 : 0;
   const overBudget = spentDisplay > budgetDisplay;
 
   return (
     <div className="bg-brand-surface rounded-xl p-4 border border-brand-border">
-      {/* Top row: name + actions */}
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0 flex-1 pr-3">
           <h3 className="text-brand-text font-medium truncate">{envelope.name}</h3>
@@ -223,32 +221,24 @@ function EnvelopeCard({
 
         {confirmingDelete ? (
           <div className="flex items-center gap-3 shrink-0">
-            <button
-              onClick={onDeleteConfirm}
-              className="text-red-400 text-sm font-medium"
-            >
+            <button onClick={onDeleteConfirm} className="text-red-400 text-sm font-medium">
               Delete
             </button>
-            <button
-              onClick={onDeleteCancel}
-              className="text-brand-text-muted text-sm"
-            >
+            <button onClick={onDeleteCancel} className="text-brand-text-muted text-sm">
               Cancel
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={onEdit}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-brand-muted active:text-brand-accent"
-              aria-label="Edit"
             >
               <EditIcon />
             </button>
             <button
               onClick={onDeleteRequest}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-brand-muted active:text-red-400"
-              aria-label="Delete"
             >
               <TrashIcon />
             </button>
@@ -259,20 +249,19 @@ function EnvelopeCard({
       {/* Progress bar */}
       <div className="h-2 bg-brand-primary rounded-full overflow-hidden mb-2">
         <div
-          className={`h-full rounded-full transition-all ${
+          className={`h-full rounded-full transition-all duration-300 ${
             overBudget ? "bg-red-500" : "bg-brand-accent"
           }`}
           style={{ width: `${Math.min(Math.max(pct, 0), 100)}%` }}
         />
       </div>
 
-      {/* Amount row */}
       <div className="flex items-baseline justify-between">
         <span className="text-xs text-brand-text-muted">
           {format(spentDisplay, displayCurrency)} spent
         </span>
         <div className="text-right">
-          <span className="text-sm font-mono text-brand-text">
+          <span className={`text-sm font-mono ${overBudget ? "text-red-400" : "text-brand-text"}`}>
             {format(remainingDisplay, displayCurrency)}
           </span>
           <span className="text-xs text-brand-text-muted ml-1">left</span>
@@ -289,8 +278,16 @@ function EnvelopeCard({
 
 function PlusIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+    </svg>
+  );
+}
+
+function EnvelopeAddIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
     </svg>
   );
 }

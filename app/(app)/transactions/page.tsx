@@ -1,12 +1,52 @@
-export default function TransactionsPage() {
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import type { FxRates } from "@/lib/currency";
+import TransactionList from "@/components/transactions/TransactionList";
+
+export default async function TransactionsPage() {
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("display_currency, household_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile) redirect("/settings");
+
+  const { data: rateRows } = await supabase
+    .from("fx_rates")
+    .select("currency_pair, rate")
+    .order("fetched_at", { ascending: false });
+
+  const fxRates: FxRates = {};
+  for (const row of rateRows ?? []) {
+    if (!fxRates[row.currency_pair]) fxRates[row.currency_pair] = Number(row.rate);
+  }
+
+  // Fetch last 100 transactions with allocations + envelope names + who added it
+  const { data: transactions } = await supabase
+    .from("transactions")
+    .select(
+      `id, amount, currency, amount_idr_snapshot, date, merchant_name, notes,
+       location_name, created_at,
+       transaction_allocations(id, amount, envelope_id, envelopes(id, name, budget_currency)),
+       users(display_name)`
+    )
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(100);
+
   return (
-    <div className="p-4">
-      <header className="py-2 mb-6">
-        <h1 className="text-xl font-semibold text-brand-text">Transactions</h1>
-      </header>
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <p className="text-brand-text-muted text-sm">Coming in Phase 3</p>
-      </div>
-    </div>
+    <TransactionList
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      initialTransactions={(transactions as any[]) ?? []}
+      displayCurrency={profile.display_currency}
+      fxRates={fxRates}
+    />
   );
 }

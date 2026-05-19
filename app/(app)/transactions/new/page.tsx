@@ -2,9 +2,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { FxRates } from "@/lib/currency";
 import type { Category, Envelope } from "@/lib/types";
-import EnvelopeDashboard from "@/components/envelopes/EnvelopeDashboard";
+import TransactionEntry from "@/components/transactions/TransactionEntry";
 
-export default async function EnvelopesPage() {
+export default async function NewTransactionPage() {
   const supabase = createClient();
 
   const {
@@ -17,10 +17,8 @@ export default async function EnvelopesPage() {
     .select("display_currency, household_id")
     .eq("id", user.id)
     .single();
-
   if (!profile) redirect("/settings");
 
-  // Latest fx_rates (one per pair, newest first)
   const { data: rateRows } = await supabase
     .from("fx_rates")
     .select("currency_pair, rate")
@@ -45,21 +43,14 @@ export default async function EnvelopesPage() {
     .is("parent_envelope_id", null)
     .order("sort_order");
 
-  // Spent amounts in IDR per envelope (locked historical snapshots)
-  const { data: spentRows } = await supabase.rpc("get_envelope_spent");
-  const spentIdr: Record<string, number> = {};
-  for (const row of spentRows ?? []) {
-    spentIdr[row.envelope_id] = Number(row.spent_idr);
-  }
-
   return (
-    <EnvelopeDashboard
-      displayCurrency={profile.display_currency}
-      fxRates={fxRates}
+    <TransactionEntry
+      envelopes={(envelopes as Envelope[]) ?? []}
       categories={(categories as Category[]) ?? []}
-      initialEnvelopes={(envelopes as Envelope[]) ?? []}
+      fxRates={fxRates}
+      userId={user.id}
       householdId={profile.household_id}
-      spentIdr={spentIdr}
+      displayCurrency={profile.display_currency}
     />
   );
 }
