@@ -14,6 +14,14 @@ interface Props {
   initialEnvelopes: Envelope[];
   householdId: string;
   spentIdr: Record<string, number>;
+  ratesUpdatedAt: string | null;
+}
+
+function fxAgeLabel(iso: string): string {
+  const diffH = (Date.now() - new Date(iso).getTime()) / 3_600_000;
+  if (diffH < 24) return "today";
+  if (diffH < 48) return "yesterday";
+  return `${Math.floor(diffH / 24)}d ago`;
 }
 
 export default function EnvelopeDashboard({
@@ -23,6 +31,7 @@ export default function EnvelopeDashboard({
   initialEnvelopes,
   householdId,
   spentIdr,
+  ratesUpdatedAt,
 }: Props) {
   const [envelopes, setEnvelopes] = useState<Envelope[]>(initialEnvelopes);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -95,9 +104,16 @@ export default function EnvelopeDashboard({
       </header>
 
       {envelopes.length > 0 && (
-        <p className="text-brand-text-muted text-sm mb-5">
-          {format(totalBudget, displayCurrency)} budgeted
-        </p>
+        <div className="flex items-center justify-between mb-5">
+          <p className="text-brand-text-muted text-sm">
+            {format(totalBudget, displayCurrency)} budgeted
+          </p>
+          {ratesUpdatedAt && (
+            <span className="text-[11px] text-brand-text-muted">
+              FX: {fxAgeLabel(ratesUpdatedAt)}
+            </span>
+          )}
+        </div>
       )}
 
       {envelopes.length === 0 && (

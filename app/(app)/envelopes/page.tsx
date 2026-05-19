@@ -20,15 +20,19 @@ export default async function EnvelopesPage() {
 
   if (!profile) redirect("/settings");
 
-  // Latest fx_rates (one per pair, newest first)
+  // Latest fx_rates (one per pair, newest first) — also grab fetched_at for freshness badge
   const { data: rateRows } = await supabase
     .from("fx_rates")
-    .select("currency_pair, rate")
+    .select("currency_pair, rate, fetched_at")
     .order("fetched_at", { ascending: false });
 
   const fxRates: FxRates = {};
+  let ratesUpdatedAt: string | null = null;
   for (const row of rateRows ?? []) {
-    if (!fxRates[row.currency_pair]) fxRates[row.currency_pair] = Number(row.rate);
+    if (!fxRates[row.currency_pair]) {
+      fxRates[row.currency_pair] = Number(row.rate);
+      if (!ratesUpdatedAt) ratesUpdatedAt = row.fetched_at;
+    }
   }
 
   const { data: categories } = await supabase
@@ -60,6 +64,7 @@ export default async function EnvelopesPage() {
       initialEnvelopes={(envelopes as Envelope[]) ?? []}
       householdId={profile.household_id}
       spentIdr={spentIdr}
+      ratesUpdatedAt={ratesUpdatedAt}
     />
   );
 }
