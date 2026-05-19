@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { convert, format, type FxRates } from "@/lib/currency";
@@ -37,6 +37,14 @@ export default function EnvelopeDashboard({
   initialTrips,
 }: Props) {
   const [envelopes, setEnvelopes] = useState<Envelope[]>(initialEnvelopes);
+  const envelopesRef = useRef(initialEnvelopes);
+  useEffect(() => {
+    if (initialEnvelopes !== envelopesRef.current) {
+      envelopesRef.current = initialEnvelopes;
+      setEnvelopes(initialEnvelopes);
+    }
+  }, [initialEnvelopes]);
+
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Envelope | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { format, convert, type FxRates } from "@/lib/currency";
@@ -65,6 +65,14 @@ function formatDateLabel(dateStr: string): string {
 
 export default function TransactionList({ initialTransactions, displayCurrency, fxRates }: Props) {
   const [transactions, setTransactions] = useState(initialTransactions);
+  const txRef = useRef(initialTransactions);
+  useEffect(() => {
+    if (initialTransactions !== txRef.current) {
+      txRef.current = initialTransactions;
+      setTransactions(initialTransactions);
+    }
+  }, [initialTransactions]);
+
   const [expanded, setExpanded] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 

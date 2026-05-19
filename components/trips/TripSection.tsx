@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Envelope, TripWithEnvelopes } from "@/lib/types";
@@ -27,6 +27,14 @@ export default function TripSection({
 }: Props) {
   const router = useRouter();
   const [trips, setTrips] = useState<TripWithEnvelopes[]>(initialTrips);
+  const tripsRef = useRef(initialTrips);
+  useEffect(() => {
+    if (initialTrips !== tripsRef.current) {
+      tripsRef.current = initialTrips;
+      setTrips(initialTrips);
+    }
+  }, [initialTrips]);
+
   const [sheetOpen, setSheetOpen] = useState(false);
   const [showEnded, setShowEnded] = useState(false);
 
