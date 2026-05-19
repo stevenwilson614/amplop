@@ -28,8 +28,9 @@ export interface Envelope {
   trip_id: string | null;
   parent_envelope_id: string | null;
   name: string;
-  budget_amount: number;  // minor units of budget_currency
+  budget_amount: number;     // minor units of budget_currency
   budget_currency: string;
+  drawn_idr_snapshot: number; // IDR locked at draw time; 0 for non-trip envelopes
   sort_order: number;
   created_at: string;
 }
@@ -43,6 +44,10 @@ export interface Trip {
   currency: string;
   status: "active" | "ended";
   created_at: string;
+}
+
+export interface TripWithEnvelopes extends Trip {
+  envelopes: Envelope[];
 }
 
 export interface Transaction {

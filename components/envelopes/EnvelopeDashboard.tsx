@@ -4,8 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { convert, format, type FxRates } from "@/lib/currency";
-import type { Category, Envelope } from "@/lib/types";
+import type { Category, Envelope, TripWithEnvelopes } from "@/lib/types";
 import EnvelopeSheet from "./EnvelopeSheet";
+import TripSection from "@/components/trips/TripSection";
 
 interface Props {
   displayCurrency: string;
@@ -15,6 +16,7 @@ interface Props {
   householdId: string;
   spentIdr: Record<string, number>;
   ratesUpdatedAt: string | null;
+  initialTrips: TripWithEnvelopes[];
 }
 
 function fxAgeLabel(iso: string): string {
@@ -32,6 +34,7 @@ export default function EnvelopeDashboard({
   householdId,
   spentIdr,
   ratesUpdatedAt,
+  initialTrips,
 }: Props) {
   const [envelopes, setEnvelopes] = useState<Envelope[]>(initialEnvelopes);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -176,6 +179,18 @@ export default function EnvelopeDashboard({
             </div>
           </section>
         )}
+      </div>
+
+      {/* Trips section */}
+      <div className="mt-8">
+        <TripSection
+          initialTrips={initialTrips}
+          parentEnvelopes={envelopes}
+          spentIdr={spentIdr}
+          displayCurrency={displayCurrency}
+          fxRates={fxRates}
+          householdId={householdId}
+        />
       </div>
 
       <EnvelopeSheet
