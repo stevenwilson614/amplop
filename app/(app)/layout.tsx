@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import BottomNav from "@/components/BottomNav";
 import RealtimeSync from "@/components/RealtimeSync";
 import { createClient } from "@/lib/supabase/server";
