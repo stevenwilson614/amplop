@@ -8,6 +8,8 @@ import TransactionEntry from "@/components/transactions/TransactionEntry";
 import { convert, format } from "@/lib/currency";
 import TripPlannerSheet from "@/components/trips/TripPlannerSheet";
 import EnvelopeDetailSheet from "@/components/envelopes/EnvelopeDetailSheet";
+import EditBudgetMode from "@/components/envelopes/EditBudgetMode";
+import CategorySheet from "@/components/envelopes/CategorySheet";
 
 export default function EnvelopesPage() {
   const { household, dbUser, fxRates, refetch } = useHousehold();
@@ -24,6 +26,18 @@ export default function EnvelopesPage() {
   const [monthSpentMap, setMonthSpentMap] = useState<Record<string, number>>({});
   const [detailEnvelope, setDetailEnvelope] = useState<Envelope | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [editModeOpen, setEditModeOpen] = useState(false);
+  const [categorySheetOpen, setCategorySheetOpen] = useState(false);
+  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!plusMenuOpen) return;
+    function handleClick() {
+      setPlusMenuOpen(false);
+    }
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+  }, [plusMenuOpen]);
 
   const load = useCallback(async () => {
     if (!household) return;
@@ -98,6 +112,18 @@ export default function EnvelopesPage() {
     setTxOpen(true);
   }
 
+  function openTxFromDetail() {
+    if (!detailEnvelope) return;
+    setDetailOpen(false);
+    openTx(detailEnvelope);
+  }
+
+  function tripDaysRemaining(trip: Trip): number {
+    const end = new Date(`${trip.end_date}T23:59:59`).getTime();
+    const now = Date.now();
+    return Math.max(1, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
+  }
+
   async function deleteActiveTrip() {
     if (!activeTrip) return;
     const confirmed = window.confirm(`Delete trip "${activeTrip.name}" and all trip envelopes?`);
@@ -136,29 +162,51 @@ export default function EnvelopesPage() {
     <div className="flex min-h-full flex-col bg-brand-surface">
       <div className="sticky top-0 z-10 border-b border-brand-border bg-brand-accent px-4 pb-4 pt-6 text-white">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              className="rounded-full bg-[#8AF4A6] px-4 py-2 font-mono text-sm font-semibold text-[#0F3C1B]"
-              type="button"
-              onClick={() => setTripSheetOpen(true)}
-            >
-              Trip
-            </button>
-            <button
+          <button
             className="rounded-full bg-[#8AF4A6] px-4 py-2 font-mono text-sm font-semibold text-[#0F3C1B]"
             type="button"
+            onClick={() => setEditModeOpen(true)}
           >
             Edit
-            </button>
-          </div>
-          <h1 className="font-mono text-3xl font-semibold tracking-tight">Envelopes</h1>
-          <button
-            onClick={openAdd}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#8AF4A6] text-2xl leading-none text-[#0F3C1B]"
-            type="button"
-          >
-            +
           </button>
+          <h1 className="font-mono text-2xl font-semibold tracking-tight">Envelopes</h1>
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); setPlusMenuOpen((v) => !v); }}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#8AF4A6] text-2xl leading-none text-[#0F3C1B]"
+              type="button"
+            >
+              +
+            </button>
+            {plusMenuOpen && (
+              <div
+                className="absolute right-0 top-12 z-20 w-44 overflow-hidden rounded-xl border border-brand-border bg-brand-surface shadow-lg"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="block w-full px-4 py-3 text-left text-sm text-brand-text hover:bg-brand-bg"
+                  onClick={() => { setPlusMenuOpen(false); openAdd(); }}
+                >
+                  Add Envelope
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-4 py-3 text-left text-sm text-brand-text hover:bg-brand-bg"
+                  onClick={() => { setPlusMenuOpen(false); setCategorySheetOpen(true); }}
+                >
+                  Add Category
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-4 py-3 text-left text-sm text-brand-text hover:bg-brand-bg"
+                  onClick={() => { setPlusMenuOpen(false); setTripSheetOpen(true); }}
+                >
+                  Add Trip
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -302,14 +350,36 @@ export default function EnvelopesPage() {
         availableIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.availableIdr ?? detailEnvelope.budget_amount) : 0}
         monthSpentIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.monthSpentIdr ?? 0) : 0}
         paceDeltaIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.paceDeltaIdr ?? 0) : 0}
-        displayCurrency={detailEnvelope?.budget_currency ?? dc}
+        displayCurrency={dc}
         fxRates={fxRates}
+        isTripEnvelope={Boolean(detailEnvelope?.trip_id)}
+        tripDaysRemaining={activeTrip ? tripDaysRemaining(activeTrip) : 30}
         onClose={() => setDetailOpen(false)}
         onEdit={() => {
           if (!detailEnvelope) return;
           setDetailOpen(false);
           openEdit(detailEnvelope);
         }}
+        onAddTransaction={openTxFromDetail}
+      />
+
+      <EditBudgetMode
+        open={editModeOpen}
+        onClose={() => setEditModeOpen(false)}
+        onSaved={() => { load(); refetch(); }}
+        onAddEnvelope={openAdd}
+        envelopes={envelopes}
+        categories={categories}
+        displayCurrency={dc}
+        fxRates={fxRates}
+      />
+
+      <CategorySheet
+        open={categorySheetOpen}
+        onClose={() => setCategorySheetOpen(false)}
+        onSaved={() => { load(); refetch(); }}
+        householdId={household?.id ?? ""}
+        categoryCount={categories.length}
       />
     </div>
   );

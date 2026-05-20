@@ -13,8 +13,11 @@ interface Props {
   paceDeltaIdr: number;
   displayCurrency: string;
   fxRates: FxRates;
+  isTripEnvelope?: boolean;
+  tripDaysRemaining?: number;
   onClose: () => void;
   onEdit: () => void;
+  onAddTransaction: () => void;
 }
 
 export default function EnvelopeDetailSheet({
@@ -26,8 +29,11 @@ export default function EnvelopeDetailSheet({
   paceDeltaIdr,
   displayCurrency,
   fxRates,
+  isTripEnvelope = false,
+  tripDaysRemaining = 30,
   onClose,
   onEdit,
+  onAddTransaction,
 }: Props) {
   const [txs, setTxs] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
@@ -63,9 +69,27 @@ export default function EnvelopeDetailSheet({
   const spentDisplay = dc === "IDR" ? spentIdr : convert(spentIdr, "IDR", dc, fxRates);
   const availableDisplay = dc === "IDR" ? availableIdr : convert(availableIdr, "IDR", dc, fxRates);
   const paceGood = paceDeltaIdr >= 0;
-  const paceDeltaDisplay = dc === "IDR" ? paceDeltaIdr : convert(paceDeltaIdr, "IDR", dc, fxRates);
-  const monthSpentDisplay = dc === "IDR" ? monthSpentIdr : convert(monthSpentIdr, "IDR", dc, fxRates);
+  const paceDeltaDisplay = dc === "IDR" ? Math.abs(paceDeltaIdr) : convert(Math.abs(paceDeltaIdr), "IDR", dc, fxRates);
   const mood = paceGood ? ":-)" : ":-(";
+
+  const paceMessage = useMemo(() => {
+    if (!envelope) return "";
+    const budgetMinor = envelope.budget_amount;
+    const budgetIdr = envelope.budget_currency === "IDR"
+      ? budgetMinor
+      : convert(budgetMinor, envelope.budget_currency, "IDR", fxRates);
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const dailyRateIdr = isTripEnvelope
+      ? Math.max(1, Math.round(budgetIdr / Math.max(1, tripDaysRemaining)))
+      : Math.max(1, Math.round(budgetIdr / daysInMonth));
+    const daysToRecover = Math.max(1, Math.ceil(Math.abs(paceDeltaIdr) / dailyRateIdr));
+
+    if (paceGood) {
+      return `Great! You're ahead by ${format(paceDeltaDisplay, dc)}`;
+    }
+    return `You're behind by ${format(paceDeltaDisplay, dc)}, stop spending for ${daysToRecover} days!`;
+  }, [envelope, paceDeltaIdr, paceDeltaDisplay, dc, fxRates, isTripEnvelope, tripDaysRemaining, paceGood]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Transaction[]>();
@@ -78,6 +102,10 @@ export default function EnvelopeDetailSheet({
 
   if (!open || !envelope) return null;
 
+  const remainingPct = availableIdr > 0
+    ? Math.max(0, Math.min(100, Math.round((Math.max(0, balanceIdr) / availableIdr) * 100)))
+    : 0;
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-brand-surface sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
       <div className="bg-brand-accent px-4 pb-4 pt-6 text-white">
@@ -89,7 +117,7 @@ export default function EnvelopeDetailSheet({
           >
             {"<"}
           </button>
-          <h2 className="text-2xl font-semibold">{envelope.name}</h2>
+          <h2 className="text-xl font-semibold">{envelope.name}</h2>
           <button
             type="button"
             onClick={onEdit}
@@ -107,25 +135,30 @@ export default function EnvelopeDetailSheet({
               <div className="text-2xl">{mood}</div>
               <div>
                 <p className="text-base font-semibold text-brand-text">{envelope.name}</p>
-                <p className={`text-xs ${paceGood ? "text-brand-accent" : "text-red-500"}`}>
-                  {paceGood ? `Great! You are ahead ${format(Math.abs(paceDeltaDisplay), dc)}` : `Over pace by ${format(Math.abs(paceDeltaDisplay), dc)}`}
-                </p>
+                <p className="text-xs text-brand-text-muted">{dc}</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-semibold text-brand-text">{format(balanceDisplay, dc)}</p>
+              <p className="text-xl font-semibold text-brand-text">{format(balanceDisplay, dc)}</p>
               <p className="text-sm text-brand-text-muted">{format(availableDisplay, dc)}</p>
             </div>
           </div>
           <div className="mt-2 h-2 w-full rounded-full bg-[#EEF1F3]">
             <div
               className={`h-full rounded-full ${balanceIdr >= 0 ? "bg-brand-accent" : "bg-red-500"}`}
-              style={{ width: `${Math.max(0, Math.min(100, Math.round((Math.max(0, balanceIdr) / Math.max(1, availableIdr)) * 100)))}%` }}
+              style={{ width: `${remainingPct}%` }}
             />
           </div>
-          <div className="mt-1 flex justify-end text-xs text-brand-text-muted">
-            <span>spent {format(spentDisplay, dc)} • month {format(monthSpentDisplay, dc)}</span>
-          </div>
+          <p className={`mt-2 text-sm ${paceGood ? "text-brand-accent" : "text-red-500"}`}>
+            {paceMessage}
+          </p>
+          <button
+            type="button"
+            onClick={onAddTransaction}
+            className="mt-3 w-full rounded-xl bg-brand-accent py-2 text-sm font-semibold text-white"
+          >
+            + Add Transaction
+          </button>
         </div>
 
         {loading && <p className="px-4 py-3 text-sm text-brand-text-muted">Loading transactions...</p>}
@@ -145,13 +178,13 @@ export default function EnvelopeDetailSheet({
                   return (
                     <div key={tx.id} className="flex items-start justify-between border-b border-brand-border px-4 py-2">
                       <div className="min-w-0">
-                        <p className="truncate text-lg leading-tight text-brand-text">
+                        <p className="truncate text-base leading-tight text-brand-text">
                           {tx.merchant_name || tx.notes || "Expense"}
                         </p>
                         <p className="text-sm leading-tight text-brand-text-muted">My Account</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-medium leading-tight text-brand-text">{format(amountDisplay, dc)}</p>
+                        <p className="text-base font-medium leading-tight text-brand-text">{format(amountDisplay, dc)}</p>
                       </div>
                     </div>
                   );
