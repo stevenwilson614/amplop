@@ -43,16 +43,15 @@ export default function OnboardingPage() {
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     withUser(async (userId, email) => {
-      const { data: hh, error: hhErr } = await supabase
+      const householdId = crypto.randomUUID();
+      const { error: hhErr } = await supabase
         .from("households")
-        .insert({ name: householdName.trim() })
-        .select()
-        .single();
+        .insert({ id: householdId, name: householdName.trim() });
       if (hhErr) throw hhErr;
 
       const { error: uErr } = await supabase.from("users").insert({
         id: userId,
-        household_id: hh.id,
+        household_id: householdId,
         email,
         display_name: displayName.trim(),
         display_currency: currency,
