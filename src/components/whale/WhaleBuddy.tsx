@@ -8,7 +8,6 @@ import {
   hasSeenTodayWhale,
   isWhaleFactsEnabled,
   markSeenTodayWhale,
-  whaleFactCount,
 } from "@/lib/whaleFactDay";
 
 export default function WhaleBuddy() {
@@ -18,10 +17,9 @@ export default function WhaleBuddy() {
 
   const enabled = isWhaleFactsEnabled(dbUser);
   const userId = dbUser?.id ?? "";
-  const total = whaleFactCount();
   const fact = getWhaleFactWithOffset(viewOffset);
-  const canGoBack = viewOffset > -(total - 1);
-  const canGoForward = viewOffset < 0;
+  const canGoBack = viewOffset === 0;
+  const canGoForward = viewOffset === -1;
 
   useEffect(() => {
     if (!enabled || !userId) return;
@@ -81,8 +79,8 @@ export default function WhaleBuddy() {
               showBack={canGoBack}
               onBack={() => setViewOffset((o) => o - 1)}
               showForward={canGoForward}
-              onForward={() => setViewOffset((o) => Math.min(o + 1, 0))}
-              forwardLabel={viewOffset === -1 ? "today →" : "→"}
+              onForward={() => setViewOffset(0)}
+              forwardLabel="today →"
             />
           </div>
         </div>
