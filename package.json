@@ -10,7 +10,8 @@
     "deploy": "npm run build && gh-pages -d dist",
     "import:goodbudget": "node scripts/import-goodbudget.mjs",
     "sync:remainings": "node scripts/sync-remainings.mjs",
-    "provision:user": "node scripts/provision-user.mjs"
+    "provision:user": "node scripts/provision-user.mjs",
+    "fix:household": "node scripts/fix-household-member.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

@@ -53,10 +53,22 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: households, error: hErr } = await sb.from("households").select("id, name").limit(1);
+  const { data: households, error: hErr } = await sb.from("households").select("id, name");
   if (hErr) throw hErr;
-  const household = households?.[0];
-  if (!household) throw new Error("No household found");
+  if (!households?.length) throw new Error("No household found");
+
+  const ranked = await Promise.all(
+    households.map(async (h) => {
+      const { count } = await sb
+        .from("envelopes")
+        .select("id", { count: "exact", head: true })
+        .eq("household_id", h.id);
+      return { h, count: count ?? 0 };
+    }),
+  );
+  ranked.sort((a, b) => b.count - a.count);
+  const household = ranked[0].h;
+  console.log(`Using primary household: ${household.name} (${household.id}) — ${ranked[0].count} envelopes`);
 
   let authUser = await findAuthUser(sb, email);
 

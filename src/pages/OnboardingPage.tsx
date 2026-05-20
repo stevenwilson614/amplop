@@ -91,13 +91,28 @@ export default function OnboardingPage() {
   function handleJoin(e: React.FormEvent) {
     e.preventDefault();
     withUser(async (userId, email) => {
-      const { error: uErr } = await supabase.from("users").insert({
-        id: userId,
-        household_id: joinCode.trim(),
+      const code = joinCode.trim();
+      const { data: valid, error: vErr } = await supabase.rpc("validate_household_join", {
+        p_household_id: code,
+      });
+      if (vErr) throw vErr;
+      if (!valid) {
+        throw new Error(
+          "Invalid invite code. In your partner's app: More → Settings → Household → copy the full code."
+        );
+      }
+
+      const row = {
+        household_id: code,
         email,
         display_name: displayName.trim(),
         display_currency: currency,
-      });
+      };
+
+      const { data: existing } = await supabase.from("users").select("id").eq("id", userId).maybeSingle();
+      const { error: uErr } = existing
+        ? await supabase.from("users").update(row).eq("id", userId)
+        : await supabase.from("users").insert({ id: userId, ...row });
       if (uErr) throw uErr;
     });
   }

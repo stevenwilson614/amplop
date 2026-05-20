@@ -13,7 +13,7 @@ import {
   syncEnvelopeRemainings,
   REMAINING_BALANCES_TEMPLATE,
 } from "@/lib/goodbudgetImport";
-import type { Envelope, EnvelopeSpent } from "@/lib/types";
+import type { DbUser, Envelope, EnvelopeSpent } from "@/lib/types";
 
 const CURRENCIES = Object.keys(CURRENCY_DECIMALS);
 
@@ -40,6 +40,16 @@ export default function SettingsPage() {
   const [remainingText, setRemainingText] = useState("");
   const [syncingRemainings, setSyncingRemainings] = useState(false);
   const [remainingMsg, setRemainingMsg] = useState("");
+  const [members, setMembers] = useState<DbUser[]>([]);
+
+  useEffect(() => {
+    if (!household) return;
+    supabase
+      .from("users")
+      .select("id, display_name, email, household_id, display_currency, created_at")
+      .eq("household_id", household.id)
+      .then(({ data }) => setMembers((data as DbUser[]) ?? []));
+  }, [household?.id]);
 
   const loadEnvelopes = useCallback(async (): Promise<Envelope[]> => {
     if (!household) return [];
@@ -298,6 +308,28 @@ export default function SettingsPage() {
               >
                 {copied ? "copied!" : household?.id}
               </button>
+            </div>
+            <div>
+              <p className="font-mono text-xs text-brand-text-muted mb-2">members ({members.length})</p>
+              <ul className="space-y-2">
+                {members.map((m) => (
+                  <li
+                    key={m.id}
+                    className="rounded-lg border border-brand-border bg-brand-surface px-3 py-2 font-mono text-xs"
+                  >
+                    <span className="text-brand-text">{m.display_name}</span>
+                    <span className="text-brand-text-muted"> — {m.email}</span>
+                    {m.id === dbUser?.id && (
+                      <span className="ml-1 text-brand-accent">(you)</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {members.length < 2 && (
+                <p className="mt-2 font-mono text-[10px] text-amber-600 leading-relaxed">
+                  Only one member listed — your partner may be on a separate household. They should use join household with the invite code above, or run the household fix script.
+                </p>
+              )}
             </div>
           </div>
         </section>
