@@ -17,6 +17,7 @@ const config: Config = {
         },
       },
       fontFamily: {
+        serif: ['"DM Serif Display"', "Georgia", "serif"],
         mono: [
           "-apple-system",
           "BlinkMacSystemFont",
