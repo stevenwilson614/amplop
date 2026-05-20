@@ -79,7 +79,7 @@ export default function App() {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={session ? <Navigate to="/envelopes" replace /> : <LoginPage />} />
         <Route element={<AuthGuard session={session} />}>
           <Route path="/onboard" element={<OnboardingPage />} />
           <Route index element={<Navigate to="/envelopes" replace />} />
