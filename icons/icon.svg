@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="96" fill="#1A4D3A"/>
+  <path d="M96 176h320v200H96z" stroke="#E8F5EE" stroke-width="24" fill="#142E24"/>
+  <path d="M96 176l160 120 160-120" stroke="#2D8659" stroke-width="24" fill="none"/>
+  <text x="256" y="340" text-anchor="middle" font-family="ui-monospace,monospace" font-size="120" font-weight="bold" fill="#2D8659">A</text>
+</svg>
