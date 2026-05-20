@@ -96,6 +96,7 @@ export default function TransactionEntry({
       () => setLocLoading(false),
       { timeout: 8000 }
     );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
   // ── Derived ────────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { convert, format, type FxRates } from "@/lib/currency";
-import type { Envelope, Trip, TripWithEnvelopes } from "@/lib/types";
+import type { Envelope, TripWithEnvelopes } from "@/lib/types";
 import TripEnvelopeSheet from "./TripEnvelopeSheet";
 
 interface Props {
