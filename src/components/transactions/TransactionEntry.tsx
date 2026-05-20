@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Envelope, DbUser, Household, FxRates } from "@/lib/types";
 import { parseToMinorUnits, getRate, convert, format, CURRENCY_DECIMALS } from "@/lib/currency";
@@ -87,100 +88,117 @@ export default function TransactionEntry({
   if (!open) return null;
 
   const selectedEnv = envelopes.find(e => e.id === envelopeId);
-  const dc = dbUser.display_currency;
+  const convertedPreview = currency !== "IDR" && amount
+    ? format(convert(parseToMinorUnits(amount, currency), currency, "IDR", fxRates), "IDR")
+    : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-brand-bg">
-      <div className="flex items-center justify-between p-4 border-b border-brand-border">
-        <button onClick={onClose} className="font-mono text-sm text-brand-text-muted">cancel</button>
-        <h1 className="font-mono font-bold text-brand-text">new transaction</h1>
+    <div className="fixed inset-0 z-50 flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
+      <div className="flex items-center justify-between bg-brand-accent px-4 pb-4 pt-7 text-white">
+        <button onClick={onClose} className="rounded-full bg-[#8AF4A6] px-3 py-2 font-mono text-sm font-semibold text-[#0F3C1B]">✕</button>
+        <h1 className="font-mono text-3xl font-semibold">Add Transaction</h1>
         <button
           onClick={handleSave}
           disabled={loading || !amount}
-          className="font-mono text-sm font-semibold text-brand-accent disabled:opacity-40"
+          className="rounded-full bg-[#8AF4A6] px-4 py-2 font-mono text-sm font-semibold text-[#0F3C1B] disabled:opacity-40"
         >
-          {loading ? "..." : "save"}
+          {loading ? "..." : "Save"}
         </button>
       </div>
 
-      <form onSubmit={handleSave} className="flex-1 overflow-auto">
-        {/* Amount */}
-        <div className="flex items-center gap-3 p-6 border-b border-brand-border">
-          <select
-            value={currency}
-            onChange={e => setCurrency(e.target.value)}
-            className="bg-transparent font-mono text-sm text-brand-accent focus:outline-none"
-          >
-            {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <input
-            type="number" required min="0.01" step="any"
-            value={amount} onChange={e => setAmount(e.target.value)}
-            placeholder="0"
-            className="flex-1 bg-transparent font-mono text-4xl font-bold text-brand-text placeholder-brand-border focus:outline-none text-right"
-            autoFocus
-          />
-        </div>
-
-        <div className="p-4 space-y-4">
-          {/* Envelope */}
-          <div className="space-y-1">
-            <label className="font-mono text-xs text-brand-text-muted uppercase tracking-wider">envelope</label>
-            <div className="grid grid-cols-2 gap-2">
-              {envelopes.map(env => (
-                <button
-                  key={env.id} type="button"
-                  onClick={() => setEnvelopeId(env.id)}
-                  className={`rounded-lg p-3 text-left border transition-colors ${
-                    env.id === envelopeId
-                      ? "border-brand-accent bg-brand-primary"
-                      : "border-brand-border bg-brand-surface"
-                  }`}
-                >
-                  <p className="font-mono text-xs text-brand-text font-semibold truncate">{env.name}</p>
-                </button>
-              ))}
+      <form onSubmit={handleSave} className="flex-1 overflow-auto bg-brand-bg pb-10">
+        <section className="mt-4 border-y border-brand-border bg-brand-surface">
+          <Row label="Type">
+            <span className="font-mono text-2xl font-medium">Expense</span>
+          </Row>
+          <Row label="Payee">
+            <input
+              type="text"
+              value={merchant}
+              onChange={e => setMerchant(e.target.value)}
+              placeholder="Who received payment?"
+              className="w-full bg-transparent text-right font-mono text-2xl text-brand-text placeholder:text-[#B9C0CB] focus:outline-none"
+            />
+          </Row>
+          <Row label="Amount">
+            <div className="flex items-center justify-end gap-2">
+              <input
+                type="number"
+                required
+                min="0.01"
+                step="any"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                placeholder="Amt"
+                autoFocus
+                className="w-28 bg-transparent text-right font-mono text-2xl text-brand-text placeholder:text-[#B9C0CB] focus:outline-none"
+              />
+              <select
+                value={currency}
+                onChange={e => setCurrency(e.target.value)}
+                className="bg-transparent font-mono text-xl text-brand-text focus:outline-none"
+              >
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
-          </div>
+          </Row>
+          <Row label="Envelope">
+            <select
+              value={envelopeId}
+              onChange={e => setEnvelopeId(e.target.value)}
+              className="w-full bg-transparent text-right font-mono text-2xl text-brand-text focus:outline-none"
+            >
+              {envelopes.map(env => (
+                <option key={env.id} value={env.id}>{env.name}</option>
+              ))}
+            </select>
+          </Row>
+          <Row label="Account">
+            <span className="font-mono text-2xl">{dbUser.display_name || "My Account"}</span>
+          </Row>
+        </section>
 
-          {/* Merchant */}
-          <div className="space-y-1">
-            <label className="font-mono text-xs text-brand-text-muted uppercase tracking-wider">merchant</label>
+        <div className="px-4 py-2 font-mono text-3xl font-semibold text-brand-text-muted">Details</div>
+
+        <section className="border-y border-brand-border bg-brand-surface">
+          <Row label="Date">
             <input
-              type="text" value={merchant} onChange={e => setMerchant(e.target.value)}
-              placeholder="Indomaret" className={inputCls}
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className="bg-transparent text-right font-mono text-2xl text-brand-text focus:outline-none"
             />
-          </div>
-
-          {/* Date */}
-          <div className="space-y-1">
-            <label className="font-mono text-xs text-brand-text-muted uppercase tracking-wider">date</label>
+          </Row>
+          <Row label="Notes">
             <input
-              type="date" value={date} onChange={e => setDate(e.target.value)}
-              className={inputCls}
+              type="text"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Optional"
+              className="w-full bg-transparent text-right font-mono text-2xl text-brand-text placeholder:text-[#B9C0CB] focus:outline-none"
             />
-          </div>
+          </Row>
+        </section>
 
-          {/* Notes */}
-          <div className="space-y-1">
-            <label className="font-mono text-xs text-brand-text-muted uppercase tracking-wider">notes</label>
-            <input
-              type="text" value={notes} onChange={e => setNotes(e.target.value)}
-              placeholder="optional" className={inputCls}
-            />
-          </div>
-
-          {currency !== "IDR" && amount && (
-            <p className="font-mono text-xs text-brand-text-muted">
-              ≈ {format(convert(parseToMinorUnits(amount, currency), currency, "IDR", fxRates), "IDR")} IDR
-            </p>
+        <div className="px-4 pt-4">
+          {convertedPreview && (
+            <p className="font-mono text-sm text-brand-text-muted">Approx. {convertedPreview} IDR</p>
           )}
-
-          {error && <p className="font-mono text-xs text-red-400">{error}</p>}
+          {selectedEnv && (
+            <p className="font-mono text-sm text-brand-text-muted">Envelope: {selectedEnv.name}</p>
+          )}
+          {error && <p className="mt-2 font-mono text-sm text-red-500">{error}</p>}
         </div>
       </form>
     </div>
   );
 }
 
-const inputCls = "w-full rounded-lg border border-brand-border bg-brand-surface px-4 py-3 font-mono text-sm text-brand-text placeholder-brand-text-muted focus:outline-none focus:ring-2 focus:ring-brand-accent";
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="flex items-center justify-between gap-4 border-b border-brand-border px-4 py-4 last:border-b-0">
+      <span className="font-mono text-2xl text-brand-text">{label}</span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </label>
+  );
+}

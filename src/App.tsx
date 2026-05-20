@@ -23,11 +23,13 @@ function AppShell() {
   if (loading) return <Spinner />;
 
   return (
-    <div className="flex flex-col h-screen bg-brand-bg">
-      <main className="flex-1 overflow-auto">
-        <Outlet />
-      </main>
-      <BottomNav />
+    <div className="min-h-screen bg-brand-bg px-0 sm:px-4 sm:py-6">
+      <div className="mx-auto flex h-screen w-full max-w-[430px] flex-col overflow-hidden bg-brand-surface sm:h-[896px] sm:rounded-[34px] sm:shadow-2xl">
+        <main className="flex-1 overflow-auto pb-24">
+          <Outlet />
+        </main>
+        <BottomNav />
+      </div>
     </div>
   );
 }
@@ -44,7 +46,7 @@ function AuthGuard({ session }: { session: Session | null }) {
 function Spinner() {
   return (
     <div className="flex h-screen items-center justify-center bg-brand-bg">
-      <span className="font-mono text-sm text-brand-text-muted">loading...</span>
+      <span className="font-mono text-sm font-semibold text-brand-text-muted">loading...</span>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { Envelope, Category, EnvelopeSpent } from "@/lib/types";
 import EnvelopeCard from "@/components/envelopes/EnvelopeCard";
 import EnvelopeSheet from "@/components/envelopes/EnvelopeSheet";
 import TransactionEntry from "@/components/transactions/TransactionEntry";
+import { convert, format } from "@/lib/currency";
 
 export default function EnvelopesPage() {
   const { household, dbUser, fxRates, refetch } = useHousehold();
@@ -50,21 +51,48 @@ export default function EnvelopesPage() {
   }
 
   const dc = dbUser?.display_currency ?? "IDR";
+  const totalBudgetIdr = envelopes.reduce((sum, env) => {
+    const budgetIdr = env.budget_currency === "IDR"
+      ? env.budget_amount
+      : convert(env.budget_amount, env.budget_currency, "IDR", fxRates);
+    return sum + budgetIdr;
+  }, 0);
+  const totalSpentIdr = envelopes.reduce((sum, env) => sum + (spentMap[env.id] ?? 0), 0);
+  const totalAvailableIdr = totalBudgetIdr - totalSpentIdr;
+  const totalBudgetDisplay = dc === "IDR" ? totalBudgetIdr : convert(totalBudgetIdr, "IDR", dc, fxRates);
+  const totalAvailableDisplay = dc === "IDR" ? totalAvailableIdr : convert(totalAvailableIdr, "IDR", dc, fxRates);
 
   // Group envelopes by category (plus uncategorised)
   const grouped = groupByCategory(envelopes, categories);
 
   return (
-    <div className="flex flex-col min-h-full">
-      <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-brand-bg border-b border-brand-border">
-        <h1 className="font-mono font-bold text-brand-text">{household?.name ?? "envelopes"}</h1>
-        <button
-          onClick={openAdd}
-          className="w-8 h-8 flex items-center justify-center rounded-full bg-brand-accent font-mono text-brand-text text-xl leading-none"
-        >+</button>
+    <div className="flex min-h-full flex-col bg-brand-surface">
+      <div className="sticky top-0 z-10 border-b border-brand-border bg-brand-accent px-4 pb-4 pt-6 text-white">
+        <div className="flex items-center justify-between">
+          <button
+            className="rounded-full bg-[#8AF4A6] px-4 py-2 font-mono text-sm font-semibold text-[#0F3C1B]"
+            type="button"
+          >
+            Edit
+          </button>
+          <h1 className="font-mono text-3xl font-semibold tracking-tight">Envelopes</h1>
+          <button
+            onClick={openAdd}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#8AF4A6] text-2xl leading-none text-[#0F3C1B]"
+            type="button"
+          >
+            +
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4 space-y-6 pb-24">
+      <div className="border-b border-brand-border bg-brand-surface px-4 py-2 text-right">
+        <p className="font-mono text-sm text-brand-text-muted">
+          All Envelopes: {format(totalBudgetDisplay, dc)}
+        </p>
+      </div>
+
+      <div className="flex-1 space-y-6 overflow-auto px-4 pb-28 pt-3">
         {grouped.length === 0 && (
           <div className="text-center py-12">
             <p className="font-mono text-sm text-brand-text-muted">no envelopes yet</p>
@@ -74,11 +102,11 @@ export default function EnvelopesPage() {
         {grouped.map(({ category, items }) => (
           <div key={category?.id ?? "__none__"}>
             {category && (
-              <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-2">
+              <p className="mb-2 font-mono text-[42px] font-semibold tracking-tight text-brand-text">
                 {category.name}
               </p>
             )}
-            <div className="space-y-3">
+            <div className="space-y-4">
               {items.map(env => (
                 <EnvelopeCard
                   key={env.id}
@@ -92,12 +120,22 @@ export default function EnvelopesPage() {
             </div>
           </div>
         ))}
+        {grouped.length > 0 && (
+          <div className="border-t border-brand-border pt-4">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[42px] font-semibold tracking-tight text-brand-text">Available</span>
+              <span className={`font-mono text-[42px] font-semibold leading-none ${totalAvailableDisplay < 0 ? "text-red-500" : "text-brand-text"}`}>
+                {format(totalAvailableDisplay, dc)}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* FAB: add transaction */}
       <button
         onClick={() => openTx()}
-        className="fixed bottom-20 right-4 w-14 h-14 rounded-full bg-brand-accent shadow-lg flex items-center justify-center font-mono text-2xl text-brand-text z-20"
+        className="fixed bottom-24 right-6 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-brand-accent text-3xl leading-none text-white shadow-lg sm:right-[calc((100vw-430px)/2+1.5rem)]"
       >+</button>
 
       <EnvelopeSheet

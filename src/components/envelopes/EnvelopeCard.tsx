@@ -31,26 +31,26 @@ export default function EnvelopeCard({ envelope, spentIdr, displayCurrency, fxRa
   return (
     <button
       onClick={onClick}
-      className="w-full text-left rounded-xl bg-brand-primary border border-brand-border p-4 active:opacity-80"
+      className="w-full text-left border-b border-brand-border pb-3 active:opacity-80"
     >
-      <div className="flex items-start justify-between mb-2">
-        <span className="font-mono text-sm text-brand-text font-semibold">{envelope.name}</span>
-        <span className={`font-mono text-xs ${over ? "text-red-400" : "text-brand-text-muted"}`}>
-          {pct}%
+      <div className="mb-1 flex items-start justify-between gap-3">
+        <span className="font-mono text-3xl font-semibold leading-none text-brand-text">{envelope.name}</span>
+        <span className={`font-mono text-[38px] font-semibold leading-none ${over ? "text-red-500" : "text-brand-text"}`}>
+          {format(balanceDisplay, dc)}
         </span>
       </div>
-      <div className={`font-mono text-xl font-bold mb-2 ${over ? "text-red-400" : "text-brand-text"}`}>
-        {format(balanceDisplay, dc)}
+      <div className="mb-1 flex justify-end">
+        <span className="font-mono text-2xl leading-none text-brand-text-muted">{format(budgetDisplay, dc)}</span>
       </div>
-      <div className="w-full h-1.5 rounded-full bg-brand-border mb-2 overflow-hidden">
+      <div className="mb-1 h-2 w-full overflow-hidden rounded-full bg-[#EEF1F3]">
         <div
-          className={`h-full rounded-full transition-all ${over ? "bg-red-400" : "bg-brand-accent"}`}
+          className={`h-full rounded-full transition-all ${over ? "bg-red-500" : "bg-brand-accent"}`}
           style={{ width: `${pct}%` }}
         />
       </div>
       <div className="flex justify-between">
+        <span className="font-mono text-xs text-brand-text-muted">{over ? "overspent" : "remaining"}</span>
         <span className="font-mono text-xs text-brand-text-muted">{format(spentDisplay, dc)} spent</span>
-        <span className="font-mono text-xs text-brand-text-muted">of {format(budgetDisplay, dc)}</span>
       </div>
     </button>
   );
