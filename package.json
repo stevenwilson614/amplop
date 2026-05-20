@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist",
     "import:goodbudget": "node scripts/import-goodbudget.mjs",
-    "sync:remainings": "node scripts/sync-remainings.mjs"
+    "sync:remainings": "node scripts/sync-remainings.mjs",
+    "provision:user": "node scripts/provision-user.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
