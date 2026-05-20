@@ -1,4 +1,4 @@
-/** Auto-generated — run: node scripts/gen-whale-image-catalog.mjs */
+/** Bundled whale photos in public/whales/ — always load locally (works offline). */
 
 export interface WhaleImageSource {
   local: string;
@@ -6,20 +6,24 @@ export interface WhaleImageSource {
   fallback: string;
 }
 
+function entry(local: string): WhaleImageSource {
+  return { local, primary: local, fallback: local };
+}
+
 export const WHALE_IMAGE_CATALOG: Record<string, WhaleImageSource> = {
-  "blue-whale-size": { local: "001-blue-whale-size.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Anim1754_-_Museum_of_Natural_History_-_Blue_Whale.jpg/1280px-Anim1754_-_Museum_of_Natural_History_-_Blue_Whale.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Blue_Whale_underwater.jpg/1200px-Blue_Whale_underwater.jpg" },
-  "humpback-song": { local: "002-humpback-song.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Humpback_stellwagen_edit.jpg/1200px-Humpback_stellwagen_edit.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/Humpback_Whale_underwater_shot.jpg/1200px-Humpback_Whale_underwater_shot.jpg" },
-  "sperm-deep": { local: "003-sperm-deep.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Physeter_macrocephalus_display.jpg/1200px-Physeter_macrocephalus_display.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/Mother_sperm_whale_and_calve.jpg/1200px-Mother_sperm_whale_and_calve.jpg" },
-  "beluga-voice": { local: "004-beluga-voice.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Beluga_whale_Delphinapterus_leucas.jpg/1200px-Beluga_whale_Delphinapterus_leucas.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Beluga_whale.jpg/1200px-Beluga_whale.jpg" },
-  "narwhal-tusk": { local: "005-narwhal-tusk.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/76/Narwhal%2C_Tavaniutit%2C_Baffin_Island.jpg/1200px-Narwhal%2C_Tavaniutit%2C_Baffin_Island.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Narwhal.jpg/1200px-Narwhal.jpg" },
-  "fin-speed": { local: "006-fin-speed.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Fin_whale_from_the_vessel_Pacific_Identity.jpg/1200px-Fin_whale_from_the_vessel_Pacific_Identity.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Fin_whale.jpg/1200px-Fin_whale.jpg" },
-  "gray-migration": { local: "007-gray-migration.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Eschrichtius_robustus.jpg/1200px-Eschrichtius_robustus.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/58/Gray_whale.jpg/1200px-Gray_whale.jpg" },
-  "bowhead-age": { local: "008-bowhead-age.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Bowhead_Whale_up-close.jpg/1200px-Bowhead_Whale_up-close.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c6/Bowhead_whale.jpg/1200px-Bowhead_whale.jpg" },
-  "right-plankton": { local: "009-right-plankton.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/North_Atlantic_Right_Whale_with_Calf.jpg/1200px-North_Atlantic_Right_Whale_with_Calf.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Eubalaena_glacialis_with_calf.jpg/1200px-Eubalaena_glacialis_with_calf.jpg" },
-  "minke-small": { local: "010-minke-small.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Minke_Whale_(NOAA).jpg/1200px-Minke_Whale_(NOAA).jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Minke_whale_aka.jpg/1200px-Minke_whale_aka.jpg" },
-  "sei-streamlined": { local: "011-sei-streamlined.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Sei_whale.jpg/1200px-Sei_whale.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Balaenoptera_borealis.jpg/1200px-Balaenoptera_borealis.jpg" },
-  "brydes-tropical": { local: "012-brydes-tropical.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/37/Brydes_whale.jpg/1200px-Brydes_whale.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Bryde's_whale.jpg/1200px-Bryde's_whale.jpg" },
-  "pygmy-sperm": { local: "013-pygmy-sperm.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Kogia_breviceps.jpg/1200px-Kogia_breviceps.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Pygmy_sperm_whale.jpg/1200px-Pygmy_sperm_whale.jpg" },
-  "cuvier-beaked": { local: "014-cuvier-beaked.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Ziphius_cavirostris.jpg/1200px-Ziphius_cavirostris.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Cuviers_beaked_whale.jpg/1200px-Cuviers_beaked_whale.jpg" },
-  "blue-whale-heart": { local: "015-blue-whale-heart.jpg", primary: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Blue_Whale_underwater.jpg/1200px-Blue_Whale_underwater.jpg", fallback: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Anim1754_-_Museum_of_Natural_History_-_Blue_Whale.jpg/1280px-Anim1754_-_Museum_of_Natural_History_-_Blue_Whale.jpg" },
+  "blue-whale-size": entry("001-blue-whale-size.jpg"),
+  "humpback-song": entry("002-humpback-song.jpg"),
+  "sperm-deep": entry("003-sperm-deep.jpg"),
+  "beluga-voice": entry("004-beluga-voice.jpg"),
+  "narwhal-tusk": entry("005-narwhal-tusk.jpg"),
+  "fin-speed": entry("006-fin-speed.jpg"),
+  "gray-migration": entry("007-gray-migration.jpg"),
+  "bowhead-age": entry("008-bowhead-age.jpg"),
+  "right-plankton": entry("009-right-plankton.jpg"),
+  "minke-small": entry("010-minke-small.jpg"),
+  "sei-streamlined": entry("011-sei-streamlined.jpg"),
+  "brydes-tropical": entry("012-brydes-tropical.jpg"),
+  "pygmy-sperm": entry("013-pygmy-sperm.jpg"),
+  "cuvier-beaked": entry("014-cuvier-beaked.jpg"),
+  "blue-whale-heart": entry("015-blue-whale-heart.jpg"),
 };

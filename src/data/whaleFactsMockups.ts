@@ -10,7 +10,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "The blue whale is the largest animal ever known to have lived — even the biggest dinosaurs were smaller. Its heart alone can weigh as much as a small car!",
     highlight: "as much as a small car!",
     image: "blue-whale-size",
-    credit: "Photo: NOAA / Wikimedia Commons (public domain)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 1,
@@ -20,7 +20,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Male humpbacks sing complex songs that can last twenty minutes and be heard miles away — and the tune changes every season.",
     highlight: "twenty minutes",
     image: "humpback-song",
-    credit: "Photo: Whit Welles / Wikimedia Commons (CC BY 3.0)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 2,
@@ -30,7 +30,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Sperm whales dive deeper than almost any mammal — over 2,000 meters — hunting giant squid in near-total darkness.",
     highlight: "over 2,000 meters",
     image: "sperm-deep",
-    credit: "Photo: Wikimedia Commons (CC BY-SA)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 3,
@@ -40,7 +40,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Belugas are so vocal that early sailors called them sea canaries. They chirp, click, and whistle in a wide range of tones.",
     highlight: "sea canaries",
     image: "beluga-voice",
-    credit: "Photo: Wikimedia Commons",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 4,
@@ -50,7 +50,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "The narwhal's spiral tusk is actually an elongated tooth — it can grow up to 3 meters long and may sense salinity and temperature.",
     highlight: "up to 3 meters long",
     image: "narwhal-tusk",
-    credit: "Photo: Wikimedia Commons (CC BY-SA 2.0)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 5,
@@ -60,7 +60,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Fin whales are among the fastest great whales, cruising at about 40 km/h and nicknamed the greyhound of the sea for their sleek build.",
     highlight: "about 40 km/h",
     image: "fin-speed",
-    credit: "Photo: NOAA / Wikimedia Commons (public domain)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 6,
@@ -70,7 +70,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Gray whales make one of the longest migrations of any mammal — roughly 20,000 km round trip between Arctic feeding grounds and warm lagoons.",
     highlight: "roughly 20,000 km",
     image: "gray-migration",
-    credit: "Photo: Wikimedia Commons (CC BY-SA 3.0)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 7,
@@ -80,7 +80,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Bowheads may live more than 200 years — among the longest-lived mammals — thanks to slow metabolism and cold northern waters.",
     highlight: "more than 200 years",
     image: "bowhead-age",
-    credit: "Photo: Kate Stafford / Wikimedia Commons (CC BY 2.0)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 8,
@@ -90,7 +90,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Right whales feed by skimming tiny copepods through baleen plates — their heads can be up to one third of their body length.",
     highlight: "one third of their body length",
     image: "right-plankton",
-    credit: "Photo: NOAA / Wikimedia Commons (public domain)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 9,
@@ -100,7 +100,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Common minke whales are the smallest of the great baleen whales, yet they still reach about 10 meters — longer than a bus.",
     highlight: "about 10 meters",
     image: "minke-small",
-    credit: "Photo: NOAA / Wikimedia Commons (public domain)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 10,
@@ -110,7 +110,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Sei whales prefer open ocean and can swim at high speed when disturbed — their name comes from the Norwegian word for pollock.",
     highlight: "high speed",
     image: "sei-streamlined",
-    credit: "Photo: Wikimedia Commons (CC BY-SA 3.0)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 11,
@@ -120,7 +120,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Bryde's whales stay in warm seas year-round unlike many migrants — they often lunge-feed on schooling fish near the surface.",
     highlight: "warm seas year-round",
     image: "brydes-tropical",
-    credit: "Photo: Wikimedia Commons (CC BY-SA 3.0)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 12,
@@ -130,7 +130,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Pygmy sperm whales release a reddish-brown ink-like fluid when startled — similar to squid — to confuse predators while they dive away.",
     highlight: "ink-like fluid",
     image: "pygmy-sperm",
-    credit: "Photo: Wikimedia Commons (public domain)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 13,
@@ -140,7 +140,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "Cuvier's beaked whales hold the mammal dive-depth record — nearly 3,000 meters — spending over two hours underwater on a single breath.",
     highlight: "nearly 3,000 meters",
     image: "cuvier-beaked",
-    credit: "Photo: Wikimedia Commons (CC BY 2.0)",
+    credit: "Photo: Amplop whale library",
   },
   {
     dayIndex: 14,
@@ -150,6 +150,6 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     fact: "A blue whale's main blood vessel is wide enough that a small child could crawl through it — and each heartbeat can be heard from kilometers away.",
     highlight: "kilometers away",
     image: "blue-whale-heart",
-    credit: "Photo: Wikimedia Commons (CC BY-SA 3.0)",
+    credit: "Photo: Amplop whale library",
   },
 ];
