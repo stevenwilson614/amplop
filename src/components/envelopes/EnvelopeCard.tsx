@@ -55,19 +55,19 @@ export default function EnvelopeCard({
       <div className="mb-1 flex justify-end">
         <span className="font-mono text-[13px] leading-none text-brand-text-muted">{format(budgetDisplay, dc)}</span>
       </div>
-      <div className="relative mb-0.5 h-2 w-full overflow-hidden rounded-full bg-[#EEF1F3]">
-        <div
-          className="absolute bottom-0 top-0 z-10 w-[2px] bg-[#1E2733]"
-          style={{ left: `${Math.max(0, Math.min(100, paceMarkerPct))}%` }}
-        />
-        <div
-          className={`h-full rounded-full transition-all ${over ? "bg-red-500" : "bg-brand-accent"} relative z-0`}
-          style={{ width: `${remainingPct}%` }}
-        />
-      </div>
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2">
+        <div className="relative mb-0.5 h-2 w-[75%] overflow-hidden rounded-full bg-[#EEF1F3]">
+          <div
+            className="absolute bottom-0 top-0 z-10 w-[2px] bg-[#1E2733]"
+            style={{ left: `${Math.max(0, Math.min(100, paceMarkerPct))}%` }}
+          />
+          <div
+            className={`h-full rounded-full transition-all ${over ? "bg-red-500" : "bg-brand-accent"} relative z-0`}
+            style={{ width: `${remainingPct}%` }}
+          />
+        </div>
         <span className="font-mono text-[11px] text-brand-text-muted">
-          {format(spentDisplay, dc)} spent
+          {format(spentDisplay, dc)}
         </span>
       </div>
     </button>

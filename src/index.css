@@ -6,6 +6,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html {
+  font-size: 75%;
+}
+
 body {
   margin: 0;
   overscroll-behavior: none;

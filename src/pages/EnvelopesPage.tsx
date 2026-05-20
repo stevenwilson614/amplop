@@ -123,6 +123,10 @@ export default function EnvelopesPage() {
   const tripSpentLocal = activeTrip
     ? (activeTrip.currency === "IDR" ? tripSpentMinor : convert(tripSpentMinor, "IDR", activeTrip.currency, fxRates))
     : 0;
+  const usdIdrRate = Number(fxRates["USD_IDR"] ?? 0);
+  const usdIdrLabel = usdIdrRate
+    ? `USD/IDR Rp ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(usdIdrRate)}`
+    : "USD/IDR -";
 
   // Group envelopes by category (plus uncategorised)
   const grouped = groupByCategory(envelopes, categories);
@@ -158,10 +162,13 @@ export default function EnvelopesPage() {
         </div>
       </div>
 
-      <div className="border-b border-brand-border bg-brand-surface px-4 py-2 text-right">
-        <p className="font-mono text-sm text-brand-text-muted">
-          All Envelopes: {format(totalBudgetDisplay, dc)}
-        </p>
+      <div className="border-b border-brand-border bg-brand-surface px-4 py-2">
+        <div className="flex items-start justify-between gap-2">
+          <p className="font-mono text-[9px] text-brand-text-muted">{usdIdrLabel}</p>
+          <p className="font-mono text-sm text-brand-text-muted text-right">
+            All Envelopes: {format(totalBudgetDisplay, dc)}
+          </p>
+        </div>
       </div>
 
       <div className="flex-1 space-y-6 overflow-auto px-4 pb-28 pt-3">
@@ -315,9 +322,10 @@ function groupByCategory(envelopes: Envelope[], categories: Category[]): Group[]
   const groups = new Map<string, Group>();
 
   for (const env of envelopes) {
-    const key = env.category_id ?? "__none__";
+    const category = env.category_id ? (catMap.get(env.category_id) ?? null) : null;
+    const key = category?.name?.trim().toLowerCase() || "__none__";
     if (!groups.has(key)) {
-      groups.set(key, { category: env.category_id ? (catMap.get(env.category_id) ?? null) : null, items: [] });
+      groups.set(key, { category, items: [] });
     }
     groups.get(key)!.items.push(env);
   }
