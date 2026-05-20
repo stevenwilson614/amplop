@@ -14,7 +14,7 @@
     <title>Amplop</title>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/amplop/sw.js').catch(() => {});
+        navigator.serviceWorker.register('/amplop/sw.js?v=3').then((reg) => reg.update()).catch(() => {});
       }
     </script>
   </head>
