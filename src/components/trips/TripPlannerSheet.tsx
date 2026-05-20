@@ -4,7 +4,7 @@ import Sheet from "@/components/ui/Sheet";
 import { supabase } from "@/lib/supabase";
 import type { Envelope } from "@/lib/types";
 import type { FxRates } from "@/lib/currency";
-import { CURRENCY_DECIMALS, convert } from "@/lib/currency";
+import { CURRENCY_DECIMALS, convert, parseToMinorUnits } from "@/lib/currency";
 
 interface Props {
   open: boolean;
@@ -20,22 +20,34 @@ const CURRENCIES = Object.keys(CURRENCY_DECIMALS);
 export default function TripPlannerSheet({ open, onClose, onSaved, householdId, envelopes, fxRates }: Props) {
   const [tripName, setTripName] = useState("");
   const [startDate, setStartDate] = useState(todayISO());
-  const [durationDays, setDurationDays] = useState(7);
+  const [endDate, setEndDate] = useState(addDays(todayISO(), 6));
   const [tripCurrency, setTripCurrency] = useState("EUR");
-  const [customCategories, setCustomCategories] = useState("");
-  const [selectedEnvelopeIds, setSelectedEnvelopeIds] = useState<string[]>([]);
+  const [drawRules, setDrawRules] = useState<Record<string, { enabled: boolean; days: number }>>({});
+  const [lineItems, setLineItems] = useState<Array<{ id: string; name: string; amount: string }>>([
+    { id: crypto.randomUUID(), name: "Shopping", amount: "" },
+  ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const envelopesById = useMemo(
-    () => new Map(envelopes.map((env) => [env.id, env])),
-    [envelopes]
-  );
+  const envelopesById = useMemo(() => new Map(envelopes.map((env) => [env.id, env])), [envelopes]);
 
-  function toggleEnvelope(id: string) {
-    setSelectedEnvelopeIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+  function updateDrawRule(id: string, next: Partial<{ enabled: boolean; days: number }>) {
+    setDrawRules((prev) => {
+      const current = prev[id] ?? { enabled: false, days: 30 };
+      return { ...prev, [id]: { ...current, ...next } };
+    });
+  }
+
+  function updateLineItem(id: string, key: "name" | "amount", value: string) {
+    setLineItems((prev) => prev.map((item) => (item.id === id ? { ...item, [key]: value } : item)));
+  }
+
+  function addLineItem() {
+    setLineItems((prev) => [...prev, { id: crypto.randomUUID(), name: "", amount: "" }]);
+  }
+
+  function removeLineItem(id: string) {
+    setLineItems((prev) => prev.filter((item) => item.id !== id));
   }
 
   async function handleCreateTrip(e: React.FormEvent) {
@@ -44,7 +56,8 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
     setError("");
 
     try {
-      const endDate = addDays(startDate, durationDays - 1);
+      if (endDate < startDate) throw new Error("End date must be on or after start date.");
+
       const { data: trip, error: tripErr } = await supabase
         .from("trips")
         .insert({
@@ -59,21 +72,18 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
         .single();
       if (tripErr) throw tripErr;
 
-      const selectedBase = selectedEnvelopeIds
-        .map((id) => envelopesById.get(id))
-        .filter(Boolean) as Envelope[];
-      const custom = splitCategories(customCategories);
-
-      const selectedNames = new Set(selectedBase.map((e) => e.name.toLowerCase()));
-      const uniqueCustom = custom.filter((name) => !selectedNames.has(name.toLowerCase()));
-
-      const derivedRows = selectedBase.map((env, idx) => {
-        const dailyAmount = Math.round(env.budget_amount / 30);
-        const scaledAmount = Math.round(dailyAmount * durationDays);
+      const activeDraws = Object.entries(drawRules).filter(([, rule]) => rule.enabled && rule.days > 0);
+      const derivedRows = activeDraws.map(([envelopeId, rule], idx) => {
+        const env = envelopesById.get(envelopeId) as Envelope;
+        const dailyAmount = Math.round(env.budget_amount / 30); // envelope monthly -> daily in source currency
+        const scaledAmount = Math.round(dailyAmount * rule.days);
         const localAmount =
           env.budget_currency === tripCurrency
             ? scaledAmount
             : convert(scaledAmount, env.budget_currency, tripCurrency, fxRates);
+        const drawnIdr = env.budget_currency === "IDR"
+          ? scaledAmount
+          : convert(scaledAmount, env.budget_currency, "IDR", fxRates);
         return {
           household_id: householdId,
           trip_id: trip.id,
@@ -82,20 +92,29 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
           name: env.name,
           budget_amount: Math.max(0, localAmount),
           budget_currency: tripCurrency,
+          drawn_idr_snapshot: Math.max(0, drawnIdr),
           sort_order: idx,
         };
       });
 
-      const customRows = uniqueCustom.map((name, idx) => ({
-        household_id: householdId,
-        trip_id: trip.id,
-        parent_envelope_id: null,
-        category_id: null,
-        name,
-        budget_amount: 0,
-        budget_currency: tripCurrency,
-        sort_order: derivedRows.length + idx,
-      }));
+      const cleanedLineItems = lineItems
+        .map((item) => ({ ...item, name: item.name.trim() }))
+        .filter((item) => item.name.length > 0);
+
+      const customRows = cleanedLineItems.map((item, idx) => {
+        const amount = parseToMinorUnits(item.amount || "0", tripCurrency);
+        return {
+          household_id: householdId,
+          trip_id: trip.id,
+          parent_envelope_id: null,
+          category_id: null,
+          name: item.name,
+          budget_amount: Math.max(0, amount),
+          budget_currency: tripCurrency,
+          drawn_idr_snapshot: 0,
+          sort_order: derivedRows.length + idx,
+        };
+      });
 
       const rows = [...derivedRows, ...customRows];
       if (rows.length > 0) {
@@ -116,10 +135,10 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
   function resetForm() {
     setTripName("");
     setStartDate(todayISO());
-    setDurationDays(7);
+    setEndDate(addDays(todayISO(), 6));
     setTripCurrency("EUR");
-    setCustomCategories("");
-    setSelectedEnvelopeIds([]);
+    setDrawRules({});
+    setLineItems([{ id: crypto.randomUUID(), name: "Shopping", amount: "" }]);
     setError("");
   }
 
@@ -146,17 +165,13 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
               className={inputCls}
             />
           </Field>
-          <Field label="duration">
-            <select
-              value={durationDays}
-              onChange={(e) => setDurationDays(Number(e.target.value))}
+          <Field label="end date">
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
               className={inputCls}
-            >
-              <option value={7}>1 week</option>
-              <option value={14}>2 weeks</option>
-              <option value={21}>3 weeks</option>
-              <option value={30}>1 month</option>
-            </select>
+            />
           </Field>
         </div>
 
@@ -174,42 +189,83 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
           </select>
         </Field>
 
-        <Field label="use normal budgets as daily trip budgets">
+        <Field label="draw from normal budgets (daily amount x days)">
           <div className="max-h-48 space-y-2 overflow-auto rounded-xl border border-brand-border bg-brand-surface p-2">
             {envelopes.length === 0 && (
               <p className="px-2 py-1 text-sm text-brand-text-muted">No base envelopes yet.</p>
             )}
-            {envelopes.map((env) => (
-              <label
-                key={env.id}
-                className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-brand-bg"
-              >
-                <span className="text-sm font-medium text-brand-text">{env.name}</span>
-                <input
-                  type="checkbox"
-                  checked={selectedEnvelopeIds.includes(env.id)}
-                  onChange={() => toggleEnvelope(env.id)}
-                  className="h-4 w-4 accent-[#34A853]"
-                />
-              </label>
-            ))}
+            {envelopes.map((env) => {
+              const rule = drawRules[env.id] ?? { enabled: false, days: 30 };
+              return (
+                <div key={env.id} className="rounded-lg px-2 py-2 hover:bg-brand-bg">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-brand-text">{env.name}</span>
+                    <input
+                      type="checkbox"
+                      checked={rule.enabled}
+                      onChange={(e) => updateDrawRule(env.id, { enabled: e.target.checked })}
+                      className="h-4 w-4 accent-[#34A853]"
+                    />
+                  </div>
+                  {rule.enabled && (
+                    <div className="mt-2 flex items-center gap-2 text-xs">
+                      <span className="text-brand-text-muted">days:</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={rule.days}
+                        onChange={(e) => updateDrawRule(env.id, { days: Number(e.target.value) })}
+                        className="w-20 rounded-lg border border-brand-border bg-brand-bg px-2 py-1 text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
           <p className="mt-1 text-xs text-brand-text-muted">
-            Selected envelopes are scaled by trip days (monthly budget / 30 x days), then converted to local currency.
+            Example: 30 days on Groceries will deduct one month worth from that envelope and assign it to the trip.
           </p>
         </Field>
 
-        <Field label="extra travel categories (comma or line separated)">
-          <textarea
-            rows={3}
-            value={customCategories}
-            onChange={(e) => setCustomCategories(e.target.value)}
-            placeholder={"Shopping\nGolfing\nEntertainment"}
-            className={`${inputCls} resize-none`}
-          />
-          <p className="mt-1 text-xs text-brand-text-muted">
-            Custom categories start at 0 so you can set exact trip amounts after creation.
-          </p>
+        <Field label="trip line items with amount">
+          <div className="space-y-2">
+            {lineItems.map((item) => (
+              <div key={item.id} className="grid grid-cols-[1fr_130px_36px] gap-2">
+                <input
+                  type="text"
+                  value={item.name}
+                  onChange={(e) => updateLineItem(item.id, "name", e.target.value)}
+                  placeholder="Golfing"
+                  className={inputCls}
+                />
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={item.amount}
+                  onChange={(e) => updateLineItem(item.id, "amount", e.target.value)}
+                  placeholder="0"
+                  className={inputCls}
+                />
+                <button
+                  type="button"
+                  className="rounded-xl border border-brand-border text-sm text-brand-text-muted"
+                  onClick={() => removeLineItem(item.id)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addLineItem}
+              className="rounded-lg border border-brand-border px-3 py-1 text-xs font-semibold text-brand-text-muted"
+            >
+              + add line item
+            </button>
+          </div>
         </Field>
 
         {error && <p className="text-sm text-red-500">{error}</p>}
@@ -235,13 +291,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       {children}
     </div>
   );
-}
-
-function splitCategories(input: string): string[] {
-  return input
-    .split(/[,\n]/)
-    .map((x) => x.trim())
-    .filter(Boolean);
 }
 
 function todayISO(): string {

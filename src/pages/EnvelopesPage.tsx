@@ -172,8 +172,7 @@ export default function EnvelopesPage() {
                   envelope={env}
                   spentIdr={spentMap[env.id] ?? 0}
                   availableIdr={perfMap[env.id]?.availableIdr}
-                  monthSpentIdr={perfMap[env.id]?.monthSpentIdr ?? 0}
-                  paceDeltaIdr={perfMap[env.id]?.paceDeltaIdr ?? 0}
+                  paceMarkerPct={perfMap[env.id]?.paceMarkerPct ?? 0}
                   displayCurrency={dc}
                   fxRates={fxRates}
                   onClick={() => openDetail(env)}
@@ -217,8 +216,7 @@ export default function EnvelopesPage() {
                   envelope={env}
                   spentIdr={spentMap[env.id] ?? 0}
                   availableIdr={perfMap[env.id]?.availableIdr}
-                  monthSpentIdr={perfMap[env.id]?.monthSpentIdr ?? 0}
-                  paceDeltaIdr={perfMap[env.id]?.paceDeltaIdr ?? 0}
+                  paceMarkerPct={perfMap[env.id]?.paceMarkerPct ?? 0}
                   displayCurrency={env.budget_currency}
                   fxRates={fxRates}
                   onClick={() => openDetail(env)}
@@ -309,7 +307,7 @@ function groupByCategory(envelopes: Envelope[], categories: Category[]): Group[]
   return Array.from(groups.values());
 }
 
-type PerfMap = Record<string, { availableIdr: number; monthSpentIdr: number; paceDeltaIdr: number }>;
+type PerfMap = Record<string, { availableIdr: number; monthSpentIdr: number; paceDeltaIdr: number; paceMarkerPct: number }>;
 
 function buildEnvelopePerfMap(
   envelopes: Envelope[],
@@ -333,11 +331,13 @@ function buildEnvelopePerfMap(
     const monthSpentIdr = monthSpentMap[env.id] ?? 0;
     const expectedByToday = Math.round(monthlyBudgetIdr * paceFactor);
     const paceDeltaIdr = expectedByToday - monthSpentIdr;
+    const paceMarkerPct = Math.max(0, Math.min(100, Math.round((1 - paceFactor) * 100)));
 
     perf[env.id] = {
       availableIdr,
       monthSpentIdr,
       paceDeltaIdr,
+      paceMarkerPct,
     };
   }
 
