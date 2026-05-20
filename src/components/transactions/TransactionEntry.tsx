@@ -265,7 +265,7 @@ export default function TransactionEntry({
 
   return (
     <div className="fixed inset-0 z-[80] flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
-      <div className="flex items-center justify-between bg-brand-accent px-4 pb-4 pt-7 text-white">
+      <div className="flex items-center justify-between bg-brand-accent px-4 pb-3 pt-5 text-white">
         <button onClick={onClose} className="rounded-full bg-[#8AF4A6] px-3 py-2 font-mono text-sm font-semibold text-[#0F3C1B]">✕</button>
         <h1 className="font-mono text-2xl font-semibold">Add Transaction</h1>
         <button
@@ -398,7 +398,7 @@ export default function TransactionEntry({
 function PickerShell({ title, onBack, children }: { title: string; onBack: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-[85] flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
-      <div className="flex items-center justify-between bg-brand-accent px-4 pb-4 pt-7 text-white">
+      <div className="flex items-center justify-between bg-brand-accent px-4 pb-3 pt-5 text-white">
         <button type="button" onClick={onBack} className="rounded-full bg-[#8AF4A6] px-4 py-2 text-sm font-semibold text-[#0F3C1B]">Back</button>
         <h1 className="text-xl font-semibold">{title}</h1>
         <div className="w-16" />

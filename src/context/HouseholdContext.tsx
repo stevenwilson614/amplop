@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, ReactNode 
 import type { DbUser, Household, FxRates } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { buildRates } from "@/lib/currency";
+import { fetchLiveFxRates, mergeFxRates } from "@/lib/fxLive";
 
 interface HouseholdCtx {
   dbUser: DbUser | null;
@@ -100,6 +101,15 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
           setFxFetchedAt(usd2?.fetched_at ?? null);
         }
       }
+
+      // Always overlay live market rates so USD/IDR stays current
+      const live = await fetchLiveFxRates();
+      if (live) {
+        setFxRates((prev) => mergeFxRates(prev, live));
+      }
+    } else {
+      const live = await fetchLiveFxRates();
+      if (live) setFxRates(live);
     }
     setLoading(false);
   }, []);

@@ -41,9 +41,30 @@ export function convert(amountMinor: number, from: string, to: string, rates: Fx
 }
 
 // Format minor units as a locale string.
+const CURRENCY_SYMBOLS: Record<string, { symbol: string; position: "before" | "after" }> = {
+  USD: { symbol: "$", position: "before" },
+  EUR: { symbol: "€", position: "before" },
+  GBP: { symbol: "£", position: "before" },
+  IDR: { symbol: "Rp", position: "before" },
+  SGD: { symbol: "S$", position: "before" },
+  JPY: { symbol: "¥", position: "before" },
+};
+
 export function format(amountMinor: number, currency: string): string {
   const decimals = CURRENCY_DECIMALS[currency] ?? 2;
   const major = amountMinor / Math.pow(10, decimals);
+  const num = new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(major);
+
+  const sym = CURRENCY_SYMBOLS[currency];
+  if (sym) {
+    return sym.position === "before"
+      ? (currency === "IDR" ? `${sym.symbol} ${num}` : `${sym.symbol}${num}`)
+      : `${num} ${sym.symbol}`;
+  }
+
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency,

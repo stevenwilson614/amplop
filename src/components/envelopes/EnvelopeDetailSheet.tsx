@@ -26,7 +26,6 @@ export default function EnvelopeDetailSheet({
   envelope,
   spentIdr,
   availableIdr,
-  monthSpentIdr,
   paceDeltaIdr,
   displayCurrency,
   fxRates,
@@ -47,7 +46,7 @@ export default function EnvelopeDetailSheet({
       setLoading(true);
       const { data } = await supabase
         .from("transactions")
-        .select("*, allocations:transaction_allocations(*)")
+        .select("*, user:users(display_name), allocations:transaction_allocations(*)")
         .eq("household_id", targetEnvelope.household_id)
         .order("date", { ascending: false })
         .order("created_at", { ascending: false });
@@ -55,7 +54,7 @@ export default function EnvelopeDetailSheet({
       const filtered = (data ?? []).filter((tx) =>
         tx.allocations?.some((a: { envelope_id: string }) => a.envelope_id === targetEnvelope.id)
       );
-      setTxs(filtered);
+      setTxs(filtered as Transaction[]);
       setLoading(false);
     }
     loadTxs();
@@ -67,7 +66,6 @@ export default function EnvelopeDetailSheet({
   const dc = displayCurrency;
   const balanceIdr = availableIdr - spentIdr;
   const balanceDisplay = dc === "IDR" ? balanceIdr : convert(balanceIdr, "IDR", dc, fxRates);
-  const spentDisplay = dc === "IDR" ? spentIdr : convert(spentIdr, "IDR", dc, fxRates);
   const availableDisplay = dc === "IDR" ? availableIdr : convert(availableIdr, "IDR", dc, fxRates);
   const paceGood = paceDeltaIdr >= 0;
   const paceDeltaDisplay = dc === "IDR" ? Math.abs(paceDeltaIdr) : convert(Math.abs(paceDeltaIdr), "IDR", dc, fxRates);
@@ -108,7 +106,7 @@ export default function EnvelopeDetailSheet({
 
   return (
     <div className="fixed inset-0 bottom-0 z-40 flex flex-col bg-brand-surface pb-24 sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
-      <div className="bg-brand-accent px-4 pb-4 pt-6 text-white">
+      <div className="bg-brand-accent px-4 pb-3 pt-5 text-white">
         <div className="flex items-center justify-between">
           <button
             type="button"
@@ -130,32 +128,32 @@ export default function EnvelopeDetailSheet({
 
       <div className="flex-1 overflow-auto bg-brand-surface pb-4">
         <div className="border-b border-brand-border px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="mr-3 flex items-center gap-2">
-              <WhaleMood happy={paceGood} />
-              <div>
-                <p className="text-base font-semibold text-brand-text">{envelope.name}</p>
-                <p className="text-xs text-brand-text-muted">{dc}</p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-brand-accent shadow-sm">
+              <WhaleMood happy={paceGood} className="h-16 w-16" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="relative h-[10px] w-full overflow-visible bg-[#EEF1F3]">
+                <div
+                  className="absolute z-10 w-[2px] bg-[#1E2733]"
+                  style={{
+                    left: `${remainingPct}%`,
+                    top: "-2px",
+                    bottom: "-2px",
+                  }}
+                />
+                <div
+                  className={`h-full ${balanceIdr >= 0 ? "bg-brand-accent" : "bg-red-500"}`}
+                  style={{ width: `${remainingPct}%` }}
+                />
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-xl font-semibold text-brand-text">{format(balanceDisplay, dc)}</p>
-              <p className="text-sm text-brand-text-muted">{format(availableDisplay, dc)}</p>
+            <div className="shrink-0 text-right">
+              <p className={`text-lg font-semibold leading-tight ${balanceIdr < 0 ? "text-red-500" : "text-brand-text"}`}>
+                {format(balanceDisplay, dc)}
+              </p>
+              <p className="text-xs text-brand-text-muted">{format(availableDisplay, dc)}</p>
             </div>
-          </div>
-          <div className="relative mt-2 h-[10px] w-full overflow-visible bg-[#EEF1F3]">
-            <div
-              className="absolute z-10 w-[2px] bg-[#1E2733]"
-              style={{
-                left: `${remainingPct}%`,
-                top: "-2px",
-                bottom: "-2px",
-              }}
-            />
-            <div
-              className={`h-full ${balanceIdr >= 0 ? "bg-brand-accent" : "bg-red-500"}`}
-              style={{ width: `${remainingPct}%` }}
-            />
           </div>
           <p className={`mt-2 text-sm ${paceGood ? "text-brand-accent" : "text-red-500"}`}>
             {paceMessage}
@@ -183,15 +181,17 @@ export default function EnvelopeDetailSheet({
                   const amountDisplay = dc === "IDR"
                     ? tx.amount_idr_snapshot
                     : convert(tx.amount_idr_snapshot, "IDR", dc, fxRates);
+                  const poster = tx.user?.display_name?.trim() || "Unknown";
+                  const merchant = tx.merchant_name || tx.notes || "Expense";
                   return (
                     <div key={tx.id} className="flex items-start justify-between border-b border-brand-border px-4 py-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-base leading-tight text-brand-text">
-                          {tx.merchant_name || tx.notes || "Expense"}
+                      <div className="min-w-0 pr-3">
+                        <p className="truncate text-lg font-medium leading-tight text-brand-text">
+                          {merchant}
                         </p>
-                        <p className="text-sm leading-tight text-brand-text-muted">My Account</p>
+                        <p className="text-sm leading-tight text-brand-text-muted">{poster}</p>
                       </div>
-                      <div className="text-right">
+                      <div className="shrink-0 text-right">
                         <p className="text-base font-medium leading-tight text-brand-text">{format(amountDisplay, dc)}</p>
                       </div>
                     </div>

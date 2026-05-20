@@ -156,7 +156,7 @@ export default function EnvelopesPage() {
 
   return (
     <div className="flex min-h-full flex-col bg-brand-surface">
-      <div className="sticky top-0 z-10 border-b border-brand-border bg-brand-accent px-4 pb-4 pt-6 text-white">
+      <div className="sticky top-0 z-10 border-b border-brand-border bg-brand-accent px-4 pb-3 pt-5 text-white">
         <div className="flex items-center justify-between">
           <button
             className="rounded-full bg-[#8AF4A6] px-5 py-2.5 font-mono text-base font-semibold text-[#0F3C1B]"
@@ -223,19 +223,20 @@ export default function EnvelopesPage() {
           </div>
         )}
         {grouped.map(({ category, items }) => {
-          const categoryMonthSpentIdr = items.reduce(
-            (sum, env) => sum + (monthSpentMap[env.id] ?? 0),
-            0
-          );
-          const categoryMonthDisplay = dc === "IDR"
-            ? categoryMonthSpentIdr
-            : convert(categoryMonthSpentIdr, "IDR", dc, fxRates);
+          const categoryAvailableIdr = items.reduce((sum, env) => {
+            const available = perfMap[env.id]?.availableIdr ?? env.budget_amount;
+            const spent = spentMap[env.id] ?? 0;
+            return sum + (available - spent);
+          }, 0);
+          const categoryAvailableDisplay = dc === "IDR"
+            ? categoryAvailableIdr
+            : convert(categoryAvailableIdr, "IDR", dc, fxRates);
           return (
           <div key={category?.id ?? "__none__"}>
             {category && (
               <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="font-mono text-[26px] font-semibold tracking-tight text-brand-text">{category.name}</p>
-                <p className="font-mono text-sm text-brand-text-muted">{format(categoryMonthDisplay, dc)}</p>
+                <p className="font-mono text-sm text-brand-text-muted">{format(categoryAvailableDisplay, dc)}</p>
               </div>
             )}
             <div className="space-y-2">

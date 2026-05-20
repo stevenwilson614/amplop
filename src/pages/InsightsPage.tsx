@@ -134,7 +134,7 @@ export default function InsightsPage() {
     <div className="flex min-h-full flex-col">
       <div className="sticky top-0 z-10 border-b border-brand-border bg-brand-bg px-4 py-3">
         <div className="flex items-center justify-between">
-          <h1 className="font-mono font-bold text-brand-text">AI Coach</h1>
+          <h1 className="font-mono font-bold text-brand-text">AI Assistant</h1>
           <Link to="/envelopes" className="font-mono text-xs text-brand-accent">← envelopes</Link>
         </div>
       </div>
