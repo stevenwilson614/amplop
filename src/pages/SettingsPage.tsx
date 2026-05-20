@@ -13,6 +13,9 @@ export default function SettingsPage() {
   const [displayCurrency, setDisplayCurrency] = useState(dbUser?.display_currency ?? "IDR");
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg] = useState("");
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -37,6 +40,16 @@ export default function SettingsPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPwSaving(true);
+    setPwMsg("");
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setPwMsg(error ? error.message : "password updated");
+    setNewPassword("");
+    setPwSaving(false);
   }
 
   async function syncFxRates() {
@@ -105,6 +118,24 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
+        </section>
+
+        {/* Change password */}
+        <section>
+          <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">password</p>
+          <form onSubmit={handleChangePassword} className="space-y-3">
+            <input
+              type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+              placeholder="new password" minLength={6} required className={inputCls}
+            />
+            {pwMsg && <p className={`font-mono text-xs ${pwMsg === "password updated" ? "text-brand-accent" : "text-red-400"}`}>{pwMsg}</p>}
+            <button
+              type="submit" disabled={pwSaving || newPassword.length < 6}
+              className="w-full rounded-lg border border-brand-border bg-brand-surface py-3 font-mono text-sm text-brand-text disabled:opacity-50"
+            >
+              {pwSaving ? "saving..." : "change password"}
+            </button>
+          </form>
         </section>
 
         {/* FX Rates */}
