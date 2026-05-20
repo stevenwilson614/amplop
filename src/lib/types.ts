@@ -45,6 +45,15 @@ export interface Trip {
   created_at: string;
 }
 
+export interface TripDraw {
+  id: string;
+  trip_id: string;
+  envelope_id: string;
+  daily_amount: number;
+  label: string;
+  created_at: string;
+}
+
 export type TxType = "expense" | "income" | "transfer";
 
 export interface Transaction {

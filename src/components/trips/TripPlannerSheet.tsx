@@ -2,31 +2,28 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Sheet from "@/components/ui/Sheet";
 import { supabase } from "@/lib/supabase";
-import type { Envelope } from "@/lib/types";
-import type { FxRates } from "@/lib/currency";
-import { CURRENCY_DECIMALS, convert, parseToMinorUnits } from "@/lib/currency";
+import type { Envelope, FxRates } from "@/lib/types";
+import { CURRENCY_DECIMALS, parseToMinorUnits, format } from "@/lib/currency";
+import { envelopeDailyAmount, saveTripDraws, syncTripDailyDraws } from "@/lib/tripDraws";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
   householdId: string;
+  userId: string;
   envelopes: Envelope[];
   fxRates: FxRates;
 }
 
 const CURRENCIES = Object.keys(CURRENCY_DECIMALS);
 
-export default function TripPlannerSheet({ open, onClose, onSaved, householdId, envelopes, fxRates }: Props) {
+export default function TripPlannerSheet({ open, onClose, onSaved, householdId, userId, envelopes, fxRates }: Props) {
   const [tripName, setTripName] = useState("");
   const [startDate, setStartDate] = useState(todayISO());
   const [endDate, setEndDate] = useState(addDays(todayISO(), 6));
   const [tripCurrency, setTripCurrency] = useState("EUR");
-  const [drawRules, setDrawRules] = useState<Record<string, {
-    enabled: boolean;
-    mode: "duration" | "amount";
-    amount: string;
-  }>>({});
+  const [drawEnvelopes, setDrawEnvelopes] = useState<Record<string, boolean>>({});
   const [lineItems, setLineItems] = useState<Array<{ id: string; name: string; amount: string }>>([
     { id: crypto.randomUUID(), name: "Shopping", amount: "" },
   ]);
@@ -35,15 +32,8 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
 
   const envelopesById = useMemo(() => new Map(envelopes.map((env) => [env.id, env])), [envelopes]);
 
-  function updateDrawRule(id: string, next: Partial<{
-    enabled: boolean;
-    mode: "duration" | "amount";
-    amount: string;
-  }>) {
-    setDrawRules((prev) => {
-      const current = prev[id] ?? { enabled: false, mode: "duration", amount: "" };
-      return { ...prev, [id]: { ...current, ...next } };
-    });
+  function toggleDrawEnvelope(id: string, enabled: boolean) {
+    setDrawEnvelopes((prev) => ({ ...prev, [id]: enabled }));
   }
 
   function updateLineItem(id: string, key: "name" | "amount", value: string) {
@@ -65,7 +55,6 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
 
     try {
       if (endDate < startDate) throw new Error("End date must be on or after start date.");
-      const tripDurationDays = daysBetweenInclusive(startDate, endDate);
 
       const { data: trip, error: tripErr } = await supabase
         .from("trips")
@@ -81,32 +70,24 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
         .single();
       if (tripErr) throw tripErr;
 
-      const activeDraws = Object.entries(drawRules).filter(([, rule]) => rule.enabled);
-      const derivedRows = activeDraws.map(([envelopeId, rule], idx) => {
-        const env = envelopesById.get(envelopeId) as Envelope;
-        const dailyAmount = Math.round(env.budget_amount / 30); // monthly -> daily in source currency
-        const scaledAmount = rule.mode === "duration"
-          ? Math.round(dailyAmount * tripDurationDays)
-          : parseToMinorUnits(rule.amount || "0", env.budget_currency);
-        const localAmount =
-          env.budget_currency === tripCurrency
-            ? scaledAmount
-            : convert(scaledAmount, env.budget_currency, tripCurrency, fxRates);
-        const drawnIdr = env.budget_currency === "IDR"
-          ? scaledAmount
-          : convert(scaledAmount, env.budget_currency, "IDR", fxRates);
-        return {
-          household_id: householdId,
-          trip_id: trip.id,
-          parent_envelope_id: env.id,
-          category_id: null,
-          name: env.name,
-          budget_amount: Math.max(0, localAmount),
-          budget_currency: tripCurrency,
-          drawn_idr_snapshot: Math.max(0, drawnIdr),
-          sort_order: idx,
-        };
-      });
+      const activeDrawIds = Object.entries(drawEnvelopes)
+        .filter(([, enabled]) => enabled)
+        .map(([id]) => id);
+
+      if (activeDrawIds.length > 0) {
+        await saveTripDraws({
+          tripId: trip.id,
+          draws: activeDrawIds.map((envelopeId) => {
+            const env = envelopesById.get(envelopeId) as Envelope;
+            return {
+              envelopeId,
+              dailyAmount: envelopeDailyAmount(env),
+              label: "Vacation",
+            };
+          }),
+        });
+        await syncTripDailyDraws({ householdId, userId, fxRates });
+      }
 
       const cleanedLineItems = lineItems
         .map((item) => ({ ...item, name: item.name.trim() }))
@@ -123,13 +104,12 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
           budget_amount: Math.max(0, amount),
           budget_currency: tripCurrency,
           drawn_idr_snapshot: 0,
-          sort_order: derivedRows.length + idx,
+          sort_order: idx,
         };
       });
 
-      const rows = [...derivedRows, ...customRows];
-      if (rows.length > 0) {
-        const { error: envErr } = await supabase.from("envelopes").insert(rows);
+      if (customRows.length > 0) {
+        const { error: envErr } = await supabase.from("envelopes").insert(customRows);
         if (envErr) throw envErr;
       }
 
@@ -148,7 +128,7 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
     setStartDate(todayISO());
     setEndDate(addDays(todayISO(), 6));
     setTripCurrency("EUR");
-    setDrawRules({});
+    setDrawEnvelopes({});
     setLineItems([{ id: crypto.randomUUID(), name: "Shopping", amount: "" }]);
     setError("");
   }
@@ -200,66 +180,38 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
           </select>
         </Field>
 
-        <Field label="draw from normal envelopes">
+        <Field label="daily draw from envelopes (shows as Vacation)">
           <div className="max-h-48 space-y-2 overflow-auto rounded-xl border border-brand-border bg-brand-surface p-2">
             {envelopes.length === 0 && (
               <p className="px-2 py-1 text-sm text-brand-text-muted">No base envelopes yet.</p>
             )}
             {envelopes.map((env) => {
-              const rule = drawRules[env.id] ?? { enabled: false, mode: "duration", amount: "" };
+              const enabled = drawEnvelopes[env.id] ?? false;
+              const daily = envelopeDailyAmount(env);
               return (
                 <div key={env.id} className="rounded-lg px-2 py-2 hover:bg-brand-bg">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-brand-text">{env.name}</span>
-                    <input
-                      type="checkbox"
-                      checked={rule.enabled}
-                      onChange={(e) => updateDrawRule(env.id, { enabled: e.target.checked })}
-                      className="h-4 w-4 accent-[#34A853]"
-                    />
-                  </div>
-                  {rule.enabled && (
-                    <div className="mt-2 space-y-2 text-xs">
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-1">
-                          <input
-                            type="radio"
-                            checked={rule.mode === "duration"}
-                            onChange={() => updateDrawRule(env.id, { mode: "duration" })}
-                          />
-                          <span>draw for trip duration</span>
-                        </label>
-                        <label className="flex items-center gap-1">
-                          <input
-                            type="radio"
-                            checked={rule.mode === "amount"}
-                            onChange={() => updateDrawRule(env.id, { mode: "amount" })}
-                          />
-                          <span>draw specific amount</span>
-                        </label>
-                      </div>
-                      {rule.mode === "amount" && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-brand-text-muted">{env.budget_currency}</span>
-                          <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            value={rule.amount}
-                            onChange={(e) => updateDrawRule(env.id, { amount: e.target.value })}
-                            className="w-28 rounded-lg border border-brand-border bg-brand-bg px-2 py-1 text-sm"
-                            placeholder="0"
-                          />
-                        </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-brand-text">{env.name}</span>
+                      {enabled && (
+                        <p className="text-xs text-brand-text-muted">
+                          {format(daily, env.budget_currency)}/day → labeled Vacation
+                        </p>
                       )}
                     </div>
-                  )}
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={(e) => toggleDrawEnvelope(env.id, e.target.checked)}
+                      className="h-4 w-4 shrink-0 accent-[#34A853]"
+                    />
+                  </div>
                 </div>
               );
             })}
           </div>
           <p className="mt-1 text-xs text-brand-text-muted">
-            Draw mode applies per envelope: full trip duration or a manually specified amount.
+            Each day of the trip, the daily amount is deducted from that envelope as &quot;Vacation&quot; — for tracking only, not added to trip budgets.
           </p>
         </Field>
 
@@ -335,14 +287,6 @@ function addDays(startIso: string, days: number): string {
   const dt = new Date(`${startIso}T00:00:00`);
   dt.setDate(dt.getDate() + days);
   return dt.toLocaleDateString("en-CA");
-}
-
-function daysBetweenInclusive(startIso: string, endIso: string): number {
-  const start = new Date(`${startIso}T00:00:00`).getTime();
-  const end = new Date(`${endIso}T00:00:00`).getTime();
-  if (end < start) return 1;
-  const days = Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
-  return Math.max(1, days);
 }
 
 const inputCls =

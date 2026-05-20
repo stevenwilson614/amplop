@@ -7,6 +7,7 @@ import EnvelopeSheet from "@/components/envelopes/EnvelopeSheet";
 import { convert, format } from "@/lib/currency";
 import { useTransactionModal } from "@/context/TransactionModalContext";
 import TripPlannerSheet from "@/components/trips/TripPlannerSheet";
+import { syncTripDailyDraws, deleteTripDrawTransactions } from "@/lib/tripDraws";
 import EnvelopeDetailSheet from "@/components/envelopes/EnvelopeDetailSheet";
 import EditBudgetMode from "@/components/envelopes/EditBudgetMode";
 import CategorySheet from "@/components/envelopes/CategorySheet";
@@ -40,6 +41,15 @@ export default function EnvelopesPage() {
 
   const load = useCallback(async () => {
     if (!household) return;
+
+    if (dbUser) {
+      await syncTripDailyDraws({
+        householdId: household.id,
+        userId: dbUser.id,
+        fxRates,
+      });
+    }
+
     const { data: trips } = await supabase
       .from("trips")
       .select("*")
@@ -58,7 +68,7 @@ export default function EnvelopesPage() {
       supabase.from("envelopes").select("*").eq("household_id", household.id).is("trip_id", null).order("sort_order"),
       supabase.rpc("get_envelope_spent"),
       currentTrip
-        ? supabase.from("envelopes").select("*").eq("household_id", household.id).eq("trip_id", currentTrip.id).order("sort_order")
+        ? supabase.from("envelopes").select("*").eq("household_id", household.id).eq("trip_id", currentTrip.id).is("parent_envelope_id", null).order("sort_order")
         : Promise.resolve({ data: [] as Envelope[] }),
       supabase
         .from("transactions")
@@ -87,7 +97,7 @@ export default function EnvelopesPage() {
       }
     }
     setMonthSpentMap(monthMap);
-  }, [household]);
+  }, [household, dbUser, fxRates]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -136,6 +146,7 @@ export default function EnvelopesPage() {
     if (!activeTrip) return;
     const confirmed = window.confirm(`Delete trip "${activeTrip.name}" and all trip envelopes?`);
     if (!confirmed) return;
+    await deleteTripDrawTransactions(activeTrip.id, household!.id);
     await supabase.from("trips").delete().eq("id", activeTrip.id);
     await load();
     refetch();
@@ -333,6 +344,7 @@ export default function EnvelopesPage() {
           refetch();
         }}
         householdId={household?.id ?? ""}
+        userId={dbUser?.id ?? ""}
         envelopes={envelopes}
         fxRates={fxRates}
       />
