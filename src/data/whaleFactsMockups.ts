@@ -1,12 +1,6 @@
 import type { WhaleFactEntry } from "@/data/whaleFacts";
-import { commonsPhotoUrl } from "@/lib/commonsPhoto";
 
-const C = (file: string, credit: string) => ({
-  image: commonsPhotoUrl(file),
-  credit,
-});
-
-/** 15 preview cards — real Wikimedia photos (network required unless bundled). */
+/** 15 preview cards — images via whaleImageCatalog (direct Wikimedia + fallbacks). */
 export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
   {
     dayIndex: 0,
@@ -15,7 +9,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Nature's gentle giant",
     fact: "The blue whale is the largest animal ever known to have lived — even the biggest dinosaurs were smaller. Its heart alone can weigh as much as a small car!",
     highlight: "as much as a small car!",
-    ...C("Anim1754_-_Museum_of_Natural_History_-_Blue_Whale.jpg", "Photo: NOAA / Wikimedia Commons (public domain)"),
+    image: "blue-whale-size",
+    credit: "Photo: NOAA / Wikimedia Commons (public domain)",
   },
   {
     dayIndex: 1,
@@ -24,7 +19,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Ocean's troubadour",
     fact: "Male humpbacks sing complex songs that can last twenty minutes and be heard miles away — and the tune changes every season.",
     highlight: "twenty minutes",
-    ...C("Humpback_stellwagen_edit.jpg", "Photo: Whit Welles / Wikimedia Commons (CC BY 3.0)"),
+    image: "humpback-song",
+    credit: "Photo: Whit Welles / Wikimedia Commons (CC BY 3.0)",
   },
   {
     dayIndex: 2,
@@ -33,7 +29,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Deep-sea hunter",
     fact: "Sperm whales dive deeper than almost any mammal — over 2,000 meters — hunting giant squid in near-total darkness.",
     highlight: "over 2,000 meters",
-    ...C("Mother_sperm_whale_and_calve.jpg", "Photo: NOAA / Wikimedia Commons (public domain)"),
+    image: "sperm-deep",
+    credit: "Photo: Wikimedia Commons (CC BY-SA)",
   },
   {
     dayIndex: 3,
@@ -42,7 +39,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "The canary of the sea",
     fact: "Belugas are so vocal that early sailors called them sea canaries. They chirp, click, and whistle in a wide range of tones.",
     highlight: "sea canaries",
-    ...C("Beluga_whale_Delphinapterus_leucas.jpg", "Photo: Public domain / Wikimedia Commons"),
+    image: "beluga-voice",
+    credit: "Photo: Wikimedia Commons",
   },
   {
     dayIndex: 4,
@@ -51,7 +49,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Unicorn of the Arctic",
     fact: "The narwhal's spiral tusk is actually an elongated tooth — it can grow up to 3 meters long and may sense salinity and temperature.",
     highlight: "up to 3 meters long",
-    ...C("Narwhal,_Tavaniutit,_Baffin_Island.jpg", "Photo: Wikimedia Commons (CC BY-SA 2.0)"),
+    image: "narwhal-tusk",
+    credit: "Photo: Wikimedia Commons (CC BY-SA 2.0)",
   },
   {
     dayIndex: 5,
@@ -60,7 +59,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "The greyhound of the sea",
     fact: "Fin whales are among the fastest great whales, cruising at about 40 km/h and nicknamed the greyhound of the sea for their sleek build.",
     highlight: "about 40 km/h",
-    ...C("Fin_whale_from_the_vessel_Pacific_Identity.jpg", "Photo: NOAA / Wikimedia Commons (public domain)"),
+    image: "fin-speed",
+    credit: "Photo: NOAA / Wikimedia Commons (public domain)",
   },
   {
     dayIndex: 6,
@@ -69,7 +69,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Champion migrant",
     fact: "Gray whales make one of the longest migrations of any mammal — roughly 20,000 km round trip between Arctic feeding grounds and warm lagoons.",
     highlight: "roughly 20,000 km",
-    ...C("Eschrichtius_robustus.jpg", "Photo: Wikimedia Commons (CC BY-SA 3.0)"),
+    image: "gray-migration",
+    credit: "Photo: Wikimedia Commons (CC BY-SA 3.0)",
   },
   {
     dayIndex: 7,
@@ -78,7 +79,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Arctic elder",
     fact: "Bowheads may live more than 200 years — among the longest-lived mammals — thanks to slow metabolism and cold northern waters.",
     highlight: "more than 200 years",
-    ...C("Bowhead_Whale_up-close.jpg", "Photo: Kate Stafford / Wikimedia Commons (CC BY 2.0)"),
+    image: "bowhead-age",
+    credit: "Photo: Kate Stafford / Wikimedia Commons (CC BY 2.0)",
   },
   {
     dayIndex: 8,
@@ -87,7 +89,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Skimmer supreme",
     fact: "Right whales feed by skimming tiny copepods through baleen plates — their heads can be up to one third of their body length.",
     highlight: "one third of their body length",
-    ...C("North_Atlantic_Right_Whale_with_Calf.jpg", "Photo: NOAA / Wikimedia Commons (public domain)"),
+    image: "right-plankton",
+    credit: "Photo: NOAA / Wikimedia Commons (public domain)",
   },
   {
     dayIndex: 9,
@@ -96,7 +99,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Small but swift",
     fact: "Common minke whales are the smallest of the great baleen whales, yet they still reach about 10 meters — longer than a bus.",
     highlight: "about 10 meters",
-    ...C("Minke_Whale_(NOAA).jpg", "Photo: NOAA / Wikimedia Commons (public domain)"),
+    image: "minke-small",
+    credit: "Photo: NOAA / Wikimedia Commons (public domain)",
   },
   {
     dayIndex: 10,
@@ -105,7 +109,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Offshore speedster",
     fact: "Sei whales prefer open ocean and can swim at high speed when disturbed — their name comes from the Norwegian word for pollock.",
     highlight: "high speed",
-    ...C("Sei_whale.jpg", "Photo: Wikimedia Commons (CC BY-SA 3.0)"),
+    image: "sei-streamlined",
+    credit: "Photo: Wikimedia Commons (CC BY-SA 3.0)",
   },
   {
     dayIndex: 11,
@@ -114,7 +119,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Tropical baleen",
     fact: "Bryde's whales stay in warm seas year-round unlike many migrants — they often lunge-feed on schooling fish near the surface.",
     highlight: "warm seas year-round",
-    ...C("Bryde's_whale.jpg", "Photo: Wikimedia Commons (CC BY-SA 3.0)"),
+    image: "brydes-tropical",
+    credit: "Photo: Wikimedia Commons (CC BY-SA 3.0)",
   },
   {
     dayIndex: 12,
@@ -123,7 +129,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Shy and squid-loving",
     fact: "Pygmy sperm whales release a reddish-brown ink-like fluid when startled — similar to squid — to confuse predators while they dive away.",
     highlight: "ink-like fluid",
-    ...C("Kogia_breviceps.jpg", "Photo: Wikimedia Commons (public domain)"),
+    image: "pygmy-sperm",
+    credit: "Photo: Wikimedia Commons (public domain)",
   },
   {
     dayIndex: 13,
@@ -132,7 +139,8 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "Record breaker",
     fact: "Cuvier's beaked whales hold the mammal dive-depth record — nearly 3,000 meters — spending over two hours underwater on a single breath.",
     highlight: "nearly 3,000 meters",
-    ...C("Cuviers_beaked_whale.jpg", "Photo: Wikimedia Commons (CC BY 2.0)"),
+    image: "cuvier-beaked",
+    credit: "Photo: Wikimedia Commons (CC BY 2.0)",
   },
   {
     dayIndex: 14,
@@ -141,6 +149,7 @@ export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
     tagline: "A heart of steel",
     fact: "A blue whale's main blood vessel is wide enough that a small child could crawl through it — and each heartbeat can be heard from kilometers away.",
     highlight: "kilometers away",
-    ...C("Blue_Whale_underwater.jpg", "Photo: Wikimedia Commons (CC BY-SA 3.0)"),
+    image: "blue-whale-heart",
+    credit: "Photo: Wikimedia Commons (CC BY-SA 3.0)",
   },
 ];

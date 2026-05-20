@@ -12,7 +12,8 @@
     "sync:remainings": "node scripts/sync-remainings.mjs",
     "provision:user": "node scripts/provision-user.mjs",
     "fix:household": "node scripts/fix-household-member.mjs",
-    "whales:download": "node scripts/download-whale-images.mjs"
+    "whales:download": "node scripts/download-whale-images.mjs",
+    "whales:catalog": "node scripts/gen-whale-image-catalog.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

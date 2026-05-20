@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { WhaleFactEntry } from "@/data/whaleFacts";
 import WhaleFabIcon from "@/components/ui/WhaleFabIcon";
-import { whaleImageUrl } from "@/lib/whaleFactDay";
+import { nextWhaleImageFallback, resolveWhaleImageSrc } from "@/lib/whaleImageResolve";
 
 export function FactBody({ text, highlight }: { text: string; highlight: string }) {
   if (!highlight || !text.includes(highlight)) {
@@ -42,18 +42,26 @@ interface Props {
 }
 
 export default function WhaleFactCard({ fact, dayLabel, showClose, onClose, className = "" }: Props) {
+  const [imgSrc, setImgSrc] = useState(() => resolveWhaleImageSrc(fact.slug, fact.image));
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const imgSrc = whaleImageUrl(fact.image);
 
   useEffect(() => {
+    const src = resolveWhaleImageSrc(fact.slug, fact.image);
+    setImgSrc(src);
     setImgLoaded(false);
     setImgError(false);
-    const img = new Image();
-    img.onload = () => setImgLoaded(true);
-    img.onerror = () => setImgError(true);
-    img.src = imgSrc;
-  }, [imgSrc]);
+  }, [fact.slug, fact.image]);
+
+  function handleImgError() {
+    const next = nextWhaleImageFallback(fact.slug, imgSrc);
+    if (next) {
+      setImgSrc(next);
+      setImgLoaded(false);
+      return;
+    }
+    setImgError(true);
+  }
 
   return (
     <article
@@ -91,10 +99,11 @@ export default function WhaleFactCard({ fact, dayLabel, showClose, onClose, clas
         {imgError ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-b from-[#2a6dad] to-[#1a3d6b] p-6 text-center">
             <WhaleFabIcon className="h-16 w-16 opacity-90" />
-            <p className="font-mono text-sm text-white/80">image unavailable</p>
+            <p className="font-mono text-sm text-white/80">photo unavailable — check connection</p>
           </div>
         ) : (
           <img
+            key={imgSrc}
             src={imgSrc}
             alt={fact.species}
             referrerPolicy="no-referrer"
@@ -102,7 +111,7 @@ export default function WhaleFactCard({ fact, dayLabel, showClose, onClose, clas
               imgLoaded ? "opacity-100" : "opacity-0"
             }`}
             onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
+            onError={handleImgError}
           />
         )}
         <WaveDivider />

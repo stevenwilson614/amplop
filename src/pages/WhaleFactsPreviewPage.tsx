@@ -9,8 +9,8 @@ export default function WhaleFactsPreviewPage() {
         <div className="mb-6 rounded-xl border border-brand-border bg-brand-surface p-4">
           <h1 className="font-mono text-lg font-bold text-brand-text">whale card mockups</h1>
           <p className="mt-2 font-mono text-xs leading-relaxed text-brand-text-muted">
-            15 preview cards with real photos from Wikimedia Commons (needs internet).
-            Run <code className="text-brand-text">npm run whales:download</code> on your Mac to save images into the app for offline use.
+            15 preview cards with real Wikimedia photos. If one fails, a backup photo loads automatically.
+            For fully offline use, run <span className="text-brand-text">npm run whales:download</span> on your Mac.
           </p>
           <Link
             to="/envelopes"
