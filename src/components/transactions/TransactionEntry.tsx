@@ -6,6 +6,11 @@ import { parseToMinorUnits, getRate, convert, format, CURRENCY_DECIMALS } from "
 import EnvelopePicker from "@/components/transactions/EnvelopePicker";
 import PayeePicker from "@/components/transactions/PayeePicker";
 import type { TransactionPrefill } from "@/context/TransactionModalContext";
+import {
+  aggregatePayeeHistoryFromTxs,
+  buildPayeeHistoryMap,
+  resolveEnvelopeForPayee,
+} from "@/lib/payeeEnvelopeMatch";
 
 interface Props {
   open: boolean;
@@ -49,6 +54,8 @@ export default function TransactionEntry({
   const [date, setDate] = useState(today());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [payeeHistoryMap, setPayeeHistoryMap] = useState<Map<string, string>>(new Map());
+  const [lockEnvelope, setLockEnvelope] = useState(false);
 
   const regularEnvelopes = useMemo(
     () => envelopes.filter((e) => !e.trip_id),
@@ -92,7 +99,36 @@ export default function TransactionEntry({
     setEnvelopeId(initialId);
     setFromEnvelopeId(initialId);
     setSplits(initialId ? [{ envelope_id: initialId, value: "" }] : []);
+    setLockEnvelope(Boolean(defaultEnvelope?.id));
   }, [open, defaultEnvelope, envelopes, prefill]);
+
+  useEffect(() => {
+    if (!open || !household) return;
+    let cancelled = false;
+    async function loadPayeeHistory() {
+      const { data } = await supabase
+        .from("transactions")
+        .select("merchant_name, allocations:transaction_allocations(envelope_id)")
+        .eq("household_id", household.id)
+        .not("merchant_name", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(400);
+      if (cancelled) return;
+      const rows = aggregatePayeeHistoryFromTxs(data ?? []);
+      setPayeeHistoryMap(buildPayeeHistoryMap(rows));
+    }
+    loadPayeeHistory();
+    return () => { cancelled = true; };
+  }, [open, household]);
+
+  useEffect(() => {
+    if (!open || lockEnvelope || txType !== "expense" || useSplits || !merchant.trim()) return;
+    const match = resolveEnvelopeForPayee(merchant, orderedEnvelopes, payeeHistoryMap);
+    if (match && match.id !== envelopeId) {
+      setEnvelopeId(match.id);
+      setSplits([{ envelope_id: match.id, value: "" }]);
+    }
+  }, [merchant, payeeHistoryMap, lockEnvelope, txType, useSplits, open, orderedEnvelopes, envelopeId]);
 
   useEffect(() => {
     if (txType !== "transfer") return;
@@ -200,7 +236,16 @@ export default function TransactionEntry({
       <PayeePicker
         householdId={household.id}
         value={merchant}
-        onSelect={setMerchant}
+        onSelect={(name) => {
+          setMerchant(name);
+          if (!lockEnvelope && txType === "expense" && !useSplits) {
+            const match = resolveEnvelopeForPayee(name, orderedEnvelopes, payeeHistoryMap);
+            if (match) {
+              setEnvelopeId(match.id);
+              setSplits([{ envelope_id: match.id, value: "" }]);
+            }
+          }
+        }}
         onClose={() => setScreen("main")}
       />
     );
@@ -237,7 +282,12 @@ export default function TransactionEntry({
         displayCurrency={dbUser.display_currency}
         fxRates={fxRates}
         allowSplit={txType !== "transfer"}
-        onSelect={(id) => { setEnvelopeId(id); setUseSplits(false); setScreen("main"); }}
+        onSelect={(id) => {
+          setEnvelopeId(id);
+          setUseSplits(false);
+          setLockEnvelope(true);
+          setScreen("main");
+        }}
         onSplitSelect={() => { setUseSplits(true); setScreen("main"); }}
         onClose={() => setScreen("main")}
       />
