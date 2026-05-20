@@ -1,15 +1,16 @@
 export interface Household {
   id: string;
   name: string;
-  display_currency: string;
   created_at: string;
 }
 
-export interface UserProfile {
+export interface DbUser {
   id: string;
   household_id: string;
-  display_name: string;
   email: string;
+  display_name: string;
+  display_currency: string;
+  created_at: string;
 }
 
 export interface Category {
@@ -23,46 +24,44 @@ export interface Envelope {
   id: string;
   household_id: string;
   category_id: string | null;
+  trip_id: string | null;
+  parent_envelope_id: string | null;
   name: string;
-  budget_idr: number;
-  balance_idr: number;
-  drawn_idr_snapshot: number;
-  currency: string;
+  budget_amount: number;
+  budget_currency: string;
   sort_order: number;
-  is_archived: boolean;
+  drawn_idr_snapshot: number;
   created_at: string;
 }
 
 export interface Trip {
   id: string;
   household_id: string;
-  envelope_id: string;
   name: string;
-  destination_currency: string;
-  drawn_idr_snapshot: number;
+  start_date: string;
+  end_date: string;
+  currency: string;
   status: "active" | "ended";
-  started_at: string;
-  ended_at: string | null;
   created_at: string;
-}
-
-export interface TripWithEnvelopes extends Trip {
-  envelope: Envelope;
 }
 
 export interface Transaction {
   id: string;
   household_id: string;
-  trip_id: string | null;
+  user_id: string;
   amount: number;
-  amount_idr_snapshot: number;
   currency: string;
-  description: string;
+  amount_idr_snapshot: number;
+  fx_rate_snapshot: number;
   date: string;
+  merchant_name: string | null;
+  notes: string | null;
   location_lat: number | null;
   location_lng: number | null;
-  created_by: string;
+  location_name: string | null;
   created_at: string;
+  user?: { display_name: string };
+  allocations?: TransactionAllocation[];
 }
 
 export interface TransactionAllocation {
@@ -74,16 +73,14 @@ export interface TransactionAllocation {
 
 export interface FxRate {
   id: string;
-  base_currency: string;
-  quote_currency: string;
+  currency_pair: string;
   rate: number;
   fetched_at: string;
 }
 
-export interface VoiceCommand {
-  id: string;
-  household_id: string;
-  transcript: string;
-  parsed_intent: Record<string, unknown> | null;
-  created_at: string;
+export type FxRates = Record<string, number>;
+
+export interface EnvelopeSpent {
+  envelope_id: string;
+  spent_idr: number;
 }
