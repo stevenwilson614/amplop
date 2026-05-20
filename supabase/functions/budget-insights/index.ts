@@ -47,12 +47,21 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userErr } = await supabase.auth.getUser();
     if (userErr || !user) return json({ error: "Unauthorized" }, 401);
 
-    const { snapshot } = (await req.json()) as { snapshot: BudgetSnapshot };
+    const body = (await req.json()) as {
+      snapshot: BudgetSnapshot;
+      question?: string;
+      history?: Array<{ role: "user" | "assistant"; content: string }>;
+      userName?: string;
+    };
+    const { snapshot, question, history, userName } = body;
     if (!snapshot?.envelopes?.length) {
       return json({ error: "No envelope data provided" }, 400);
     }
 
-    const prompt = buildPrompt(snapshot);
+    const isChat = Boolean(question?.trim());
+    const prompt = isChat
+      ? buildChatPrompt(snapshot, question!.trim(), history ?? [], userName ?? "User")
+      : buildPrompt(snapshot);
 
     const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -63,7 +72,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 1200,
+        max_tokens: isChat ? 800 : 1200,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -85,14 +94,59 @@ Deno.serve(async (req) => {
   }
 });
 
-function buildPrompt(snapshot: BudgetSnapshot): string {
-  const lines = snapshot.envelopes.map((e) => {
+function formatSnapshotContext(snapshot: BudgetSnapshot): string {
+  return snapshot.envelopes.map((e) => {
     const history = e.monthHistory
       .map((m) => `${m.month}: ${m.spentIdr} IDR spent`)
       .join("; ");
     const avg = e.avgMonthlySpendIdr ?? 0;
     return `- ${e.name}: monthly budget ${e.monthlyBudgetIdr} IDR, avg monthly spend ${avg} IDR, lifetime spent ${e.totalSpentIdr}, balance ${e.balanceIdr}. Last 12 months: ${history}`;
   }).join("\n");
+}
+
+function buildChatPrompt(
+  snapshot: BudgetSnapshot,
+  question: string,
+  history: Array<{ role: string; content: string }>,
+  userName: string,
+): string {
+  const context = formatSnapshotContext(snapshot);
+  const transcript = history
+    .slice(-8)
+    .map((m) => `${m.role === "user" ? userName : "Assistant"}: ${m.content}`)
+    .join("\n");
+
+  return `You are a warm, concise household budget assistant for a family using envelope budgeting in Indonesia (amounts in IDR — whole rupiah).
+
+BUDGET DATA:
+${context}
+
+CONVERSATION SO FAR:
+${transcript || "(none)"}
+
+${userName} asks: ${question}
+
+Answer helpfully using the budget data. Be specific with envelope names and amounts when relevant.
+If a transfer between envelopes would help, include 0-1 suggestion.
+
+Respond ONLY with valid JSON (no markdown fences):
+{
+  "message": "your reply in 2-5 sentences",
+  "suggestions": [
+    {
+      "fromEnvelope": "exact envelope name",
+      "toEnvelope": "exact envelope name",
+      "amountIdr": 100000,
+      "reason": "brief reason"
+    }
+  ]
+}
+
+Use an empty suggestions array if no transfer is needed.`;
+}
+
+function buildPrompt(snapshot: BudgetSnapshot): string {
+  const lines = formatSnapshotContext(snapshot);
 
   return `You are a warm, concise household budget coach for a family using envelope budgeting in Indonesia (amounts in IDR — whole rupiah, no decimals).
 

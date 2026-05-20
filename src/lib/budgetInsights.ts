@@ -112,15 +112,16 @@ export interface InsightResponse {
   suggestions: TransferSuggestion[];
 }
 
-export function speakInsight(text: string) {
-  if (!("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.95;
-  window.speechSynthesis.speak(utterance);
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
-export async function fetchBudgetInsights(snapshot: BudgetSnapshot, accessToken: string): Promise<InsightResponse> {
+export async function fetchBudgetInsights(
+  snapshot: BudgetSnapshot,
+  accessToken: string,
+  options?: { question?: string; history?: ChatMessage[]; userName?: string }
+): Promise<InsightResponse> {
   const res = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/budget-insights`,
     {
@@ -129,7 +130,12 @@ export async function fetchBudgetInsights(snapshot: BudgetSnapshot, accessToken:
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ snapshot }),
+      body: JSON.stringify({
+        snapshot,
+        question: options?.question,
+        history: options?.history,
+        userName: options?.userName,
+      }),
     }
   );
 

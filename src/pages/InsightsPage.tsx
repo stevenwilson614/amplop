@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useHousehold } from "@/context/HouseholdContext";
 import { supabase } from "@/lib/supabase";
@@ -8,12 +8,25 @@ import WhaleMood from "@/components/ui/WhaleMood";
 import {
   buildBudgetSnapshot,
   fetchBudgetInsights,
-  speakInsight,
   executeTransfer,
   resolveSuggestion,
-  type InsightResponse,
   type TransferSuggestion,
+  type ChatMessage,
 } from "@/lib/budgetInsights";
+
+interface UiMessage {
+  id: string;
+  role: "user" | "assistant";
+  author: string;
+  content: string;
+  suggestions?: TransferSuggestion[];
+}
+
+const QUICK_PROMPTS = [
+  "How are we doing this month?",
+  "Which envelopes are over budget?",
+  "Where could we save money?",
+];
 
 export default function InsightsPage() {
   const { household, dbUser, fxRates } = useHousehold();
@@ -25,11 +38,12 @@ export default function InsightsPage() {
     amount_idr_snapshot: number;
     allocations?: { envelope_id: string; amount: number }[];
   }>>([]);
-  const [insight, setInsight] = useState<InsightResponse | null>(null);
+  const [messages, setMessages] = useState<UiMessage[]>([]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [transferring, setTransferring] = useState<number | null>(null);
-  const [spoken, setSpoken] = useState(false);
+  const [transferring, setTransferring] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     if (!household) return;
@@ -62,45 +76,81 @@ export default function InsightsPage() {
     return () => window.removeEventListener("amplop:data-changed", onChange);
   }, [load]);
 
-  const dc = dbUser?.display_currency ?? "IDR";
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, loading]);
 
-  async function runCoach() {
-    if (!dbUser || !household) return;
-    setLoading(true);
+  const dc = dbUser?.display_currency ?? "IDR";
+  const userName = dbUser?.display_name?.trim() || "You";
+
+  function buildSnapshot() {
+    return buildBudgetSnapshot({
+      envelopes,
+      spentMap,
+      monthTxs,
+      fxRates,
+      displayCurrency: dc,
+    });
+  }
+
+  function toApiHistory(msgs: UiMessage[]): ChatMessage[] {
+    return msgs
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .slice(-10)
+      .map((m) => ({ role: m.role, content: m.content }));
+  }
+
+  async function sendQuestion(question: string) {
+    if (!dbUser || !household || !question.trim() || loading) return;
+    const trimmed = question.trim();
+    setInput("");
     setError("");
-    setInsight(null);
-    setSpoken(false);
+
+    const userMsg: UiMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      author: userName,
+      content: trimmed,
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setLoading(true);
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not signed in");
 
-      const snapshot = buildBudgetSnapshot({
-        envelopes,
-        spentMap,
-        monthTxs,
-        fxRates,
-        displayCurrency: dc,
+      const result = await fetchBudgetInsights(buildSnapshot(), session.access_token, {
+        question: trimmed,
+        history: toApiHistory([...messages, userMsg]),
+        userName,
       });
 
-      const result = await fetchBudgetInsights(snapshot, session.access_token);
-      setInsight(result);
-      speakInsight(result.message);
-      setSpoken(true);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          author: "Insights",
+          content: result.message,
+          suggestions: result.suggestions?.length ? result.suggestions : undefined,
+        },
+      ]);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Could not get insights");
+      setError(err instanceof Error ? err.message : "Could not get a response");
     } finally {
       setLoading(false);
     }
   }
 
-  async function applyTransfer(suggestion: TransferSuggestion, index: number) {
+  async function applyTransfer(suggestion: TransferSuggestion, messageId: string, index: number) {
     if (!dbUser || !household) return;
     const resolved = resolveSuggestion(suggestion, envelopes);
     if (!resolved) {
       setError("Could not match envelope names for transfer");
       return;
     }
-    setTransferring(index);
+    const key = `${messageId}-${index}`;
+    setTransferring(key);
     setError("");
     try {
       await executeTransfer({
@@ -112,11 +162,14 @@ export default function InsightsPage() {
       });
       window.dispatchEvent(new CustomEvent("amplop:data-changed"));
       await load();
-      setInsight((prev) => prev ? {
-        ...prev,
-        message: `Done! Transferred ${format(resolved.amountIdr, "IDR")} from ${suggestion.fromEnvelope} to ${suggestion.toEnvelope}.`,
-        suggestions: prev.suggestions.filter((_, i) => i !== index),
-      } : null);
+      setMessages((prev) => prev.map((m) => {
+        if (m.id !== messageId) return m;
+        return {
+          ...m,
+          suggestions: m.suggestions?.filter((_, i) => i !== index),
+          content: `${m.content}\n\nDone — transferred ${format(resolved.amountIdr, "IDR")} from ${suggestion.fromEnvelope} to ${suggestion.toEnvelope}.`,
+        };
+      }));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Transfer failed");
     } finally {
@@ -124,112 +177,114 @@ export default function InsightsPage() {
     }
   }
 
-  const totalBudgetIdr = envelopes.reduce((s, e) => {
-    const idr = e.budget_currency === "IDR" ? e.budget_amount : convert(e.budget_amount, e.budget_currency, "IDR", fxRates);
-    return s + idr;
-  }, 0);
-  const totalSpentIdr = Object.values(spentMap).reduce((s, v) => s + v, 0);
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    sendQuestion(input);
+  }
 
   return (
     <div className="flex min-h-full flex-col">
       <div className="sticky top-0 z-10 border-b border-brand-border bg-brand-bg px-4 py-3">
         <div className="flex items-center justify-between">
-          <h1 className="font-mono font-bold text-brand-text">AI Assistant</h1>
+          <h1 className="font-mono font-bold text-brand-text">Insights</h1>
           <Link to="/envelopes" className="font-mono text-xs text-brand-accent">← envelopes</Link>
         </div>
       </div>
 
-      <div className="flex-1 space-y-6 overflow-auto p-4 pb-24">
-        <section className="rounded-2xl border border-brand-border bg-brand-surface p-4">
-          <div className="mb-3 flex items-center gap-3">
-            <WhaleMood happy={!error} className="h-12 w-12" />
-            <div>
-              <p className="font-mono text-sm font-semibold text-brand-text">Budget coach</p>
-              <p className="font-mono text-xs text-brand-text-muted">Analyzes your monthly patterns and suggests moves</p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={runCoach}
-            disabled={loading || envelopes.length === 0}
-            className="w-full rounded-xl bg-brand-accent py-3 font-mono text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {loading ? "Thinking..." : "Get AI insight"}
-          </button>
-
-          {insight && (
-            <div className="mt-4 space-y-3">
-              <p className="font-mono text-sm leading-relaxed text-brand-text">{insight.message}</p>
-              {spoken && (
+      <div ref={scrollRef} className="flex-1 overflow-auto px-4 py-4 pb-36">
+        {messages.length === 0 && (
+          <div className="mb-6 rounded-2xl border border-brand-border bg-brand-surface p-4 text-center">
+            <WhaleMood happy className="mx-auto h-14 w-14" />
+            <p className="mt-3 font-mono text-sm font-semibold text-brand-text">Ask about your budget</p>
+            <p className="mt-1 font-mono text-xs leading-relaxed text-brand-text-muted">
+              Olivia or {userName === "You" ? "you" : userName} can ask anything — spending trends, envelopes running low, or where to cut back.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {QUICK_PROMPTS.map((prompt) => (
                 <button
+                  key={prompt}
                   type="button"
-                  onClick={() => speakInsight(insight.message)}
-                  className="font-mono text-xs text-brand-accent"
+                  onClick={() => sendQuestion(prompt)}
+                  disabled={loading || envelopes.length === 0}
+                  className="rounded-full border border-brand-border bg-brand-bg px-3 py-1.5 font-mono text-[11px] text-brand-text disabled:opacity-50"
                 >
-                  🔊 Listen again
+                  {prompt}
                 </button>
-              )}
-              {insight.suggestions.map((s, i) => (
-                <div key={i} className="rounded-xl border border-brand-border bg-brand-bg p-3">
-                  <p className="font-mono text-xs text-brand-text-muted">{s.reason}</p>
-                  <p className="mt-1 font-mono text-sm text-brand-text">
-                    Move {format(s.amountIdr, "IDR")} from <strong>{s.fromEnvelope}</strong> → <strong>{s.toEnvelope}</strong>
-                  </p>
-                  <button
-                    type="button"
-                    disabled={transferring === i}
-                    onClick={() => applyTransfer(s, i)}
-                    className="mt-2 rounded-lg bg-brand-accent px-3 py-1.5 font-mono text-xs font-semibold text-white disabled:opacity-50"
-                  >
-                    {transferring === i ? "Transferring..." : "Yes, transfer"}
-                  </button>
-                </div>
               ))}
             </div>
-          )}
-
-          {error && (
-            <p className="mt-3 font-mono text-xs text-red-500">{error}</p>
-          )}
-        </section>
-
-        <div className="grid grid-cols-2 gap-3">
-          <SummaryCard label="monthly budget" value={format(dc === "IDR" ? totalBudgetIdr : convert(totalBudgetIdr, "IDR", dc, fxRates), dc)} />
-          <SummaryCard label="total spent" value={format(dc === "IDR" ? totalSpentIdr : convert(totalSpentIdr, "IDR", dc, fxRates), dc)} />
-        </div>
-
-        <div>
-          <p className="mb-3 font-mono text-xs uppercase tracking-widest text-brand-text-muted">by envelope</p>
-          <div className="space-y-2">
-            {envelopes.map((env) => {
-              const budgetIdr = env.budget_currency === "IDR" ? env.budget_amount : convert(env.budget_amount, env.budget_currency, "IDR", fxRates);
-              const spentIdr = spentMap[env.id] ?? 0;
-              const pct = budgetIdr > 0 ? Math.min(100, Math.round((spentIdr / budgetIdr) * 100)) : 0;
-              return (
-                <div key={env.id} className="rounded-xl border border-brand-border bg-brand-surface p-3">
-                  <div className="mb-1 flex justify-between">
-                    <span className="font-mono text-xs text-brand-text">{env.name}</span>
-                    <span className="font-mono text-xs text-brand-text-muted">{pct}% of month</span>
-                  </div>
-                  <div className="mb-1 h-1 w-full overflow-hidden rounded-full bg-brand-border">
-                    <div className={`h-full ${pct > 100 ? "bg-red-400" : "bg-brand-accent"}`} style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })}
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+        )}
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-brand-border bg-brand-surface p-3 text-center">
-      <p className="mb-1 font-mono text-xs text-brand-text-muted">{label}</p>
-      <p className="font-mono text-sm font-bold text-brand-text">{value}</p>
+        <div className="space-y-3">
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[88%] rounded-2xl px-3 py-2 ${
+                  msg.role === "user"
+                    ? "bg-brand-accent text-white"
+                    : "border border-brand-border bg-brand-surface text-brand-text"
+                }`}
+              >
+                <p className="font-mono text-[10px] font-semibold opacity-70">{msg.author}</p>
+                <p className="mt-0.5 whitespace-pre-wrap font-mono text-sm leading-relaxed">{msg.content}</p>
+                {msg.suggestions?.map((s, i) => (
+                  <div key={i} className="mt-2 rounded-xl border border-brand-border bg-brand-bg p-2">
+                    <p className="font-mono text-[10px] text-brand-text-muted">{s.reason}</p>
+                    <p className="mt-1 font-mono text-xs text-brand-text">
+                      Move {format(s.amountIdr, "IDR")}: {s.fromEnvelope} → {s.toEnvelope}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={transferring === `${msg.id}-${i}`}
+                      onClick={() => applyTransfer(s, msg.id, i)}
+                      className="mt-2 rounded-lg bg-brand-accent px-2.5 py-1 font-mono text-[10px] font-semibold text-white disabled:opacity-50"
+                    >
+                      {transferring === `${msg.id}-${i}` ? "Transferring..." : "Yes, transfer"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="rounded-2xl border border-brand-border bg-brand-surface px-3 py-2">
+                <p className="font-mono text-sm text-brand-text-muted">Thinking...</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <p className="mt-3 font-mono text-xs text-red-500">{error}</p>
+        )}
+      </div>
+
+      <form
+        onSubmit={handleSubmit}
+        className="fixed inset-x-0 bottom-[5.75rem] z-[60] mx-auto max-w-[430px] px-3 pb-1"
+      >
+        <div className="flex items-center gap-2 rounded-full border border-brand-border bg-[rgba(235,238,242,0.98)] p-1.5 shadow-[0_4px_16px_rgba(16,18,23,0.12)] backdrop-blur-md">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={`Ask as ${userName}...`}
+            disabled={loading || envelopes.length === 0}
+            className="min-w-0 flex-1 bg-transparent px-3 py-2 font-mono text-sm text-brand-text placeholder:text-brand-text-muted focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={loading || !input.trim() || envelopes.length === 0}
+            className="shrink-0 rounded-full bg-brand-accent px-4 py-2 font-mono text-xs font-semibold text-white disabled:opacity-50"
+          >
+            Send
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
