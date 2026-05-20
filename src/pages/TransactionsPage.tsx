@@ -21,7 +21,7 @@ export default function TransactionsPage() {
         .order("date", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(100),
-      supabase.from("envelopes").select("*").eq("household_id", household.id).is("trip_id", null),
+      supabase.from("envelopes").select("*").eq("household_id", household.id),
     ]);
     setTransactions(txs ?? []);
     setEnvelopes(envs ?? []);
