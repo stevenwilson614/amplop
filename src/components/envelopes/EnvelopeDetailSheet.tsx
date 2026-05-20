@@ -143,9 +143,17 @@ export default function EnvelopeDetailSheet({
               <p className="text-sm text-brand-text-muted">{format(availableDisplay, dc)}</p>
             </div>
           </div>
-          <div className="mt-2 h-2 w-full rounded-full bg-[#EEF1F3]">
+          <div className="relative mt-2 h-[10px] w-full overflow-visible bg-[#EEF1F3]">
             <div
-              className={`h-full rounded-full ${balanceIdr >= 0 ? "bg-brand-accent" : "bg-red-500"}`}
+              className="absolute z-10 w-[2px] bg-[#1E2733]"
+              style={{
+                left: `${remainingPct}%`,
+                top: "-2px",
+                bottom: "-2px",
+              }}
+            />
+            <div
+              className={`h-full ${balanceIdr >= 0 ? "bg-brand-accent" : "bg-red-500"}`}
               style={{ width: `${remainingPct}%` }}
             />
           </div>

@@ -7,6 +7,7 @@ interface HouseholdCtx {
   dbUser: DbUser | null;
   household: Household | null;
   fxRates: FxRates;
+  fxFetchedAt: string | null;
   loading: boolean;
   needsOnboarding: boolean;
   refetch: () => void;
@@ -16,15 +17,27 @@ const Ctx = createContext<HouseholdCtx>({
   dbUser: null,
   household: null,
   fxRates: {},
+  fxFetchedAt: null,
   loading: true,
   needsOnboarding: false,
   refetch: () => {},
 });
 
+async function triggerFxSync() {
+  await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fx-rate-sync`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+    },
+  });
+}
+
 export function HouseholdProvider({ children }: { children: ReactNode }) {
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [household, setHousehold] = useState<Household | null>(null);
   const [fxRates, setFxRates] = useState<FxRates>({});
+  const [fxFetchedAt, setFxFetchedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
@@ -57,7 +70,6 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
 
     if (hh) setHousehold(hh);
     if (rates) {
-      // Deduplicate: keep only latest per pair
       const seen = new Set<string>();
       const latest = rates.filter((r) => {
         if (seen.has(r.currency_pair)) return false;
@@ -65,6 +77,29 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         return true;
       });
       setFxRates(buildRates(latest));
+      const usdRow = latest.find((r) => r.currency_pair === "USD/IDR");
+      setFxFetchedAt(usdRow?.fetched_at ?? null);
+
+      const fetchedMs = usdRow?.fetched_at ? new Date(usdRow.fetched_at).getTime() : 0;
+      const stale = !fetchedMs || Date.now() - fetchedMs > 24 * 60 * 60 * 1000;
+      if (stale) {
+        await triggerFxSync();
+        const { data: refreshed } = await supabase
+          .from("fx_rates")
+          .select("currency_pair, rate, fetched_at")
+          .order("fetched_at", { ascending: false });
+        if (refreshed) {
+          const seen2 = new Set<string>();
+          const latest2 = refreshed.filter((r) => {
+            if (seen2.has(r.currency_pair)) return false;
+            seen2.add(r.currency_pair);
+            return true;
+          });
+          setFxRates(buildRates(latest2));
+          const usd2 = latest2.find((r) => r.currency_pair === "USD/IDR");
+          setFxFetchedAt(usd2?.fetched_at ?? null);
+        }
+      }
     }
     setLoading(false);
   }, []);
@@ -85,7 +120,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   }, [household, load]);
 
   return (
-    <Ctx.Provider value={{ dbUser, household, fxRates, loading, needsOnboarding, refetch: load }}>
+    <Ctx.Provider value={{ dbUser, household, fxRates, fxFetchedAt, loading, needsOnboarding, refetch: load }}>
       {children}
     </Ctx.Provider>
   );

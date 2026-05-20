@@ -1,14 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
-import type { Envelope, DbUser, Household, FxRates } from "@/lib/types";
+import type { Envelope, DbUser, Household, FxRates, Category, TxType } from "@/lib/types";
 import { parseToMinorUnits, getRate, convert, format, CURRENCY_DECIMALS } from "@/lib/currency";
+import EnvelopePicker from "@/components/transactions/EnvelopePicker";
+import PayeePicker from "@/components/transactions/PayeePicker";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
   envelopes: Envelope[];
+  categories?: Category[];
   dbUser: DbUser;
   household: Household;
   fxRates: FxRates;
@@ -18,36 +21,37 @@ interface Props {
 const CURRENCIES = Object.keys(CURRENCY_DECIMALS);
 const today = () => new Date().toLocaleDateString("en-CA");
 type SplitMode = "amount" | "percent";
+type Screen = "main" | "type" | "payee" | "envelope" | "from" | "amount";
 interface SplitItem { envelope_id: string; value: string }
 
+const TX_TYPE_LABELS: Record<TxType, string> = {
+  expense: "Expense",
+  income: "Income",
+  transfer: "Envelope transfer",
+};
+
 export default function TransactionEntry({
-  open, onClose, onSaved, envelopes, dbUser, household, fxRates, defaultEnvelope,
+  open, onClose, onSaved, envelopes, categories = [], dbUser, household, fxRates, defaultEnvelope,
 }: Props) {
+  const [screen, setScreen] = useState<Screen>("main");
+  const [txType, setTxType] = useState<TxType>("expense");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("IDR");
   const [envelopeId, setEnvelopeId] = useState("");
+  const [fromEnvelopeId, setFromEnvelopeId] = useState("");
   const [splitMode, setSplitMode] = useState<SplitMode>("amount");
   const [splits, setSplits] = useState<SplitItem[]>([]);
+  const [useSplits, setUseSplits] = useState(false);
   const [merchant, setMerchant] = useState("");
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(today());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (open) {
-      setAmount("");
-      setMerchant("");
-      setNotes("");
-      setDate(today());
-      setError("");
-      setEnvelopeId(defaultEnvelope?.id ?? envelopes[0]?.id ?? "");
-      setCurrency(defaultEnvelope?.budget_currency ?? "IDR");
-      setSplitMode("amount");
-      const initialEnvelope = defaultEnvelope?.id ?? envelopes[0]?.id ?? "";
-      setSplits(initialEnvelope ? [{ envelope_id: initialEnvelope, value: "" }] : []);
-    }
-  }, [open, defaultEnvelope, envelopes]);
+  const regularEnvelopes = useMemo(
+    () => envelopes.filter((e) => !e.trip_id),
+    [envelopes]
+  );
 
   const orderedEnvelopes = useMemo(() => {
     return [...envelopes].sort((a, b) => {
@@ -64,47 +68,83 @@ export default function TransactionEntry({
     });
   }, [envelopes, currency]);
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!envelopeId && splits.length === 0) { setError("select an envelope"); return; }
+  useEffect(() => {
+    if (open) {
+      setScreen("main");
+      setTxType("expense");
+      setAmount("");
+      setMerchant("");
+      setNotes("");
+      setDate(today());
+      setError("");
+      setUseSplits(false);
+      setEnvelopeId(defaultEnvelope?.id ?? envelopes[0]?.id ?? "");
+      setFromEnvelopeId(defaultEnvelope?.id ?? envelopes[0]?.id ?? "");
+      setCurrency(defaultEnvelope?.budget_currency ?? "IDR");
+      setSplitMode("amount");
+      const initialEnvelope = defaultEnvelope?.id ?? envelopes[0]?.id ?? "";
+      setSplits(initialEnvelope ? [{ envelope_id: initialEnvelope, value: "" }] : []);
+    }
+  }, [open, defaultEnvelope, envelopes]);
+
+  useEffect(() => {
+    if (txType !== "transfer") return;
+    setUseSplits(true);
+    setSplits((prev) => {
+      if (prev.length > 0) return prev;
+      const dest = orderedEnvelopes.find((e) => e.id !== fromEnvelopeId);
+      return [{ envelope_id: dest?.id ?? orderedEnvelopes[0]?.id ?? "", value: "" }];
+    });
+  }, [txType, fromEnvelopeId, orderedEnvelopes]);
+
+  async function handleSave(e?: React.FormEvent) {
+    e?.preventDefault();
     setLoading(true);
     setError("");
     try {
       const amountMinor = parseToMinorUnits(amount, currency);
       if (amountMinor <= 0) throw new Error("enter amount");
+
       const amountIdr = convert(amountMinor, currency, "IDR", fxRates);
       const fxRate = currency === "IDR" ? 1 : getRate(fxRates, currency, "IDR");
+
+      const allocRows = buildAllocationRows({
+        txType,
+        amountMinor,
+        envelopeId,
+        fromEnvelopeId,
+        useSplits,
+        splits,
+        splitMode,
+        currency,
+      });
+      if (allocRows.length === 0) throw new Error("select envelope(s)");
 
       const { data: tx, error: txErr } = await supabase
         .from("transactions")
         .insert({
           household_id: household.id,
           user_id: dbUser.id,
+          tx_type: txType,
           amount: amountMinor,
           currency,
           amount_idr_snapshot: amountIdr,
           fx_rate_snapshot: fxRate,
           date,
-          merchant_name: merchant || null,
+          merchant_name: txType === "transfer" ? null : (merchant || null),
           notes: notes || null,
         })
         .select()
         .single();
       if (txErr) throw txErr;
 
-      const finalSplits = buildFinalSplits({
-        splits: splits.length > 0 ? splits : [{ envelope_id: envelopeId, value: "" }],
-        mode: splitMode,
-        totalAmountMinor: amountMinor,
-        currency,
-      });
-      if (finalSplits.length === 0) throw new Error("add at least one split");
-      const allocRows = finalSplits.map((s) => ({
-        transaction_id: tx.id,
-        envelope_id: s.envelope_id,
-        amount: s.amountMinor,
-      }));
-      const { error: allocErr } = await supabase.from("transaction_allocations").insert(allocRows);
+      const { error: allocErr } = await supabase.from("transaction_allocations").insert(
+        allocRows.map((a) => ({
+          transaction_id: tx.id,
+          envelope_id: a.envelope_id,
+          amount: a.amountMinor,
+        }))
+      );
       if (allocErr) throw allocErr;
 
       onSaved();
@@ -118,14 +158,16 @@ export default function TransactionEntry({
 
   if (!open) return null;
 
-  const selectedEnv = envelopes.find(e => e.id === envelopeId);
+  const selectedEnv = envelopes.find((e) => e.id === envelopeId);
+  const fromEnv = envelopes.find((e) => e.id === fromEnvelopeId);
   const convertedPreview = currency !== "IDR" && amount
     ? format(convert(parseToMinorUnits(amount, currency), currency, "IDR", fxRates), "IDR")
     : null;
 
   function addSplit() {
-    const fallback = orderedEnvelopes[0]?.id ?? "";
+    const fallback = orderedEnvelopes.find((e) => e.id !== fromEnvelopeId)?.id ?? orderedEnvelopes[0]?.id ?? "";
     setSplits((prev) => [...prev, { envelope_id: fallback, value: "" }]);
+    setUseSplits(true);
   }
 
   function removeSplit(idx: number) {
@@ -146,13 +188,117 @@ export default function TransactionEntry({
     });
   }
 
+  if (screen === "payee" && txType !== "transfer") {
+    return (
+      <PayeePicker
+        householdId={household.id}
+        value={merchant}
+        onSelect={setMerchant}
+        onClose={() => setScreen("main")}
+      />
+    );
+  }
+
+  if (screen === "type") {
+    return (
+      <PickerShell title="Type" onBack={() => setScreen("main")}>
+        {(["expense", "income", "transfer"] as TxType[]).map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => {
+              setTxType(type);
+              setUseSplits(false);
+              setScreen("main");
+            }}
+            className="flex w-full items-center justify-between border-b border-brand-border px-4 py-4 text-left"
+          >
+            <span className="text-xl text-brand-text">{TX_TYPE_LABELS[type]}</span>
+            {txType === type && <span className="text-brand-accent">✓</span>}
+          </button>
+        ))}
+      </PickerShell>
+    );
+  }
+
+  if (screen === "envelope") {
+    return (
+      <EnvelopePicker
+        envelopes={orderedEnvelopes}
+        categories={categories}
+        selectedId={envelopeId}
+        displayCurrency={dbUser.display_currency}
+        fxRates={fxRates}
+        allowSplit={txType !== "transfer"}
+        onSelect={(id) => { setEnvelopeId(id); setUseSplits(false); setScreen("main"); }}
+        onSplitSelect={() => { setUseSplits(true); setScreen("main"); }}
+        onClose={() => setScreen("main")}
+      />
+    );
+  }
+
+  if (screen === "from") {
+    return (
+      <EnvelopePicker
+        envelopes={regularEnvelopes.length ? regularEnvelopes : orderedEnvelopes}
+        categories={categories}
+        selectedId={fromEnvelopeId}
+        displayCurrency={dbUser.display_currency}
+        fxRates={fxRates}
+        allowSplit={false}
+        onSelect={(id) => { setFromEnvelopeId(id); setScreen("main"); }}
+        onClose={() => setScreen("main")}
+      />
+    );
+  }
+
+  if (screen === "amount") {
+    return (
+      <div className="fixed inset-0 z-[60] flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
+        <div className="flex items-center justify-between bg-brand-accent px-4 pb-4 pt-7 text-white">
+          <button type="button" onClick={() => setScreen("main")} className="rounded-full bg-[#8AF4A6] px-4 py-2 text-sm font-semibold text-[#0F3C1B]">Back</button>
+          <h1 className="text-xl font-semibold">Amount</h1>
+          <button type="button" onClick={() => setScreen("main")} className="rounded-full bg-[#8AF4A6] px-4 py-2 text-sm font-semibold text-[#0F3C1B]">Done</button>
+        </div>
+        <div className="flex flex-1 flex-col px-4 pt-6">
+          <div className="flex items-center justify-end gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9]*"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+              placeholder="0"
+              autoFocus
+              className="w-full bg-transparent text-right text-4xl text-brand-text focus:outline-none"
+            />
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className="bg-transparent text-xl text-brand-text focus:outline-none"
+            >
+              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          {convertedPreview && (
+            <p className="mt-2 text-right text-sm text-brand-text-muted">≈ {convertedPreview}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const envelopeLabel = useSplits
+    ? `${splits.length} envelopes`
+    : (selectedEnv ? (selectedEnv.trip_id ? `✈ ${selectedEnv.name}` : selectedEnv.name) : "Select");
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
       <div className="flex items-center justify-between bg-brand-accent px-4 pb-4 pt-7 text-white">
         <button onClick={onClose} className="rounded-full bg-[#8AF4A6] px-3 py-2 font-mono text-sm font-semibold text-[#0F3C1B]">✕</button>
-        <h1 className="font-mono text-3xl font-semibold">Add Transaction</h1>
+        <h1 className="font-mono text-2xl font-semibold">Add Transaction</h1>
         <button
-          onClick={handleSave}
+          onClick={() => handleSave()}
           disabled={loading || !amount}
           className="rounded-full bg-[#8AF4A6] px-4 py-2 font-mono text-sm font-semibold text-[#0F3C1B] disabled:opacity-40"
         >
@@ -162,102 +308,80 @@ export default function TransactionEntry({
 
       <form onSubmit={handleSave} className="flex-1 overflow-auto bg-brand-bg pb-10">
         <section className="mt-4 border-y border-brand-border bg-brand-surface">
-          <Row label="Type">
-            <span className="font-mono text-2xl font-medium">Expense</span>
-          </Row>
-          <Row label="Payee">
-            <input
-              type="text"
-              value={merchant}
-              onChange={e => setMerchant(e.target.value)}
-              placeholder="Who received payment?"
-              className="w-full bg-transparent text-right font-mono text-2xl text-brand-text placeholder:text-[#B9C0CB] focus:outline-none"
-            />
-          </Row>
-          <Row label="Amount">
+          <TappableRow label="Type" onClick={() => setScreen("type")}>
+            <span className="font-mono text-2xl font-medium">{TX_TYPE_LABELS[txType]}</span>
+          </TappableRow>
+
+          {txType !== "transfer" && (
+            <TappableRow label="Payee" onClick={() => setScreen("payee")}>
+              <span className={`font-mono text-2xl ${merchant ? "text-brand-text" : "text-[#B9C0CB]"}`}>
+                {merchant || "Who received payment?"}
+              </span>
+            </TappableRow>
+          )}
+
+          <TappableRow label="Amount" onClick={() => setScreen("amount")}>
             <div className="flex items-center justify-end gap-2">
-              <input
-                type="number"
-                required
-                min="0.01"
-                step="any"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder="Amt"
-                autoFocus
-                className="w-28 bg-transparent text-right font-mono text-2xl text-brand-text placeholder:text-[#B9C0CB] focus:outline-none"
-              />
-              <select
-                value={currency}
-                onChange={e => setCurrency(e.target.value)}
-                className="bg-transparent font-mono text-xl text-brand-text focus:outline-none"
-              >
-                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <span className="font-mono text-2xl text-brand-text">{amount || "Amt"}</span>
+              <span className="font-mono text-xl text-brand-text-muted">{currency}</span>
             </div>
-          </Row>
-          <Row label="Envelope">
-            <select
-              value={envelopeId}
-              onChange={e => {
-                setEnvelopeId(e.target.value);
-                if (splits.length === 0) setSplits([{ envelope_id: e.target.value, value: "" }]);
-              }}
-              className="w-full bg-transparent text-right font-mono text-2xl text-brand-text focus:outline-none"
-            >
-              <optgroup label="Travel + same currency first">
-                {orderedEnvelopes.filter(env => env.trip_id && env.budget_currency === currency).map(env => (
-                  <option key={env.id} value={env.id}>✈ {env.name}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Other travel envelopes">
-                {orderedEnvelopes.filter(env => env.trip_id && env.budget_currency !== currency).map(env => (
-                  <option key={env.id} value={env.id}>✈ {env.name}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Regular envelopes">
-                {orderedEnvelopes.filter(env => !env.trip_id).map(env => (
-                  <option key={env.id} value={env.id}>{env.name}</option>
-                ))}
-              </optgroup>
-            </select>
-          </Row>
+          </TappableRow>
+
+          {txType === "transfer" ? (
+            <TappableRow label="From" onClick={() => setScreen("from")}>
+              <span className="font-mono text-2xl text-brand-text">{fromEnv?.name ?? "Select"}</span>
+            </TappableRow>
+          ) : (
+            <TappableRow label="Envelope" onClick={() => setScreen("envelope")}>
+              <span className="font-mono text-2xl text-brand-text">{envelopeLabel}</span>
+            </TappableRow>
+          )}
+
           <Row label="Account">
             <span className="font-mono text-2xl">{dbUser.display_name || "My Account"}</span>
           </Row>
-          <div className="border-t border-brand-border px-4 py-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="font-mono text-sm text-brand-text-muted">Split</span>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setSplitMode("amount")} className={`rounded px-2 py-1 text-xs ${splitMode === "amount" ? "bg-brand-accent text-white" : "border border-brand-border text-brand-text-muted"}`}>amount</button>
-                <button type="button" onClick={() => setSplitMode("percent")} className={`rounded px-2 py-1 text-xs ${splitMode === "percent" ? "bg-brand-accent text-white" : "border border-brand-border text-brand-text-muted"}`}>percent</button>
+
+          {(useSplits || txType === "transfer") && (
+            <div className="border-t border-brand-border px-4 py-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-mono text-sm text-brand-text-muted">
+                  {txType === "transfer" ? "To envelopes" : "Split"}
+                </span>
+                {(txType === "income" || txType === "transfer") && (
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setSplitMode("amount")} className={`rounded px-2 py-1 text-xs ${splitMode === "amount" ? "bg-brand-accent text-white" : "border border-brand-border text-brand-text-muted"}`}>amount</button>
+                    <button type="button" onClick={() => setSplitMode("percent")} className={`rounded px-2 py-1 text-xs ${splitMode === "percent" ? "bg-brand-accent text-white" : "border border-brand-border text-brand-text-muted"}`}>percent</button>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                {(txType === "transfer" ? splits : splits).map((split, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr_100px_28px] gap-2 rounded-lg border border-brand-border p-2">
+                    <select
+                      value={split.envelope_id}
+                      onChange={(e) => updateSplit(idx, { envelope_id: e.target.value })}
+                      className="bg-transparent text-sm text-brand-text focus:outline-none"
+                    >
+                      {orderedEnvelopes
+                        .filter((env) => txType !== "transfer" || env.id !== fromEnvelopeId)
+                        .map((env) => (
+                          <option key={env.id} value={env.id}>{env.trip_id ? `✈ ${env.name}` : env.name}</option>
+                        ))}
+                    </select>
+                    <input
+                      value={split.value}
+                      onChange={(e) => updateSplit(idx, { value: e.target.value })}
+                      placeholder={splitMode === "amount" ? "0" : "%"}
+                      inputMode="decimal"
+                      className="bg-transparent text-right text-sm text-brand-text focus:outline-none"
+                    />
+                    <button type="button" onClick={() => removeSplit(idx)} className="text-brand-text-muted">×</button>
+                  </div>
+                ))}
+                <button type="button" onClick={addSplit} className="text-xs text-brand-accent">+ add split</button>
               </div>
             </div>
-            <div className="space-y-2">
-              {splits.map((split, idx) => (
-                <div key={idx} className="grid grid-cols-[1fr_100px_28px] gap-2 rounded-lg border border-brand-border p-2">
-                  <select
-                    value={split.envelope_id}
-                    onChange={(e) => updateSplit(idx, { envelope_id: e.target.value })}
-                    className="bg-transparent text-sm text-brand-text focus:outline-none"
-                  >
-                    {orderedEnvelopes.map((env) => (
-                      <option key={env.id} value={env.id}>{env.trip_id ? `✈ ${env.name}` : env.name}</option>
-                    ))}
-                  </select>
-                  <input
-                    value={split.value}
-                    onChange={(e) => updateSplit(idx, { value: e.target.value })}
-                    placeholder={splitMode === "amount" ? "0" : "%"}
-                    className="bg-transparent text-right text-sm text-brand-text focus:outline-none"
-                    inputMode="decimal"
-                  />
-                  <button type="button" onClick={() => removeSplit(idx)} className="text-brand-text-muted">×</button>
-                </div>
-              ))}
-              <button type="button" onClick={addSplit} className="text-xs text-brand-accent">+ add split</button>
-            </div>
-          </div>
+          )}
         </section>
 
         <div className="px-4 py-2 font-mono text-3xl font-semibold text-brand-text-muted">Details</div>
@@ -267,7 +391,7 @@ export default function TransactionEntry({
             <input
               type="date"
               value={date}
-              onChange={e => setDate(e.target.value)}
+              onChange={(e) => setDate(e.target.value)}
               className="bg-transparent text-right font-mono text-2xl text-brand-text focus:outline-none"
             />
           </Row>
@@ -275,7 +399,7 @@ export default function TransactionEntry({
             <input
               type="text"
               value={notes}
-              onChange={e => setNotes(e.target.value)}
+              onChange={(e) => setNotes(e.target.value)}
               placeholder="Optional"
               className="w-full bg-transparent text-right font-mono text-2xl text-brand-text placeholder:text-[#B9C0CB] focus:outline-none"
             />
@@ -284,10 +408,7 @@ export default function TransactionEntry({
 
         <div className="px-4 pt-4">
           {convertedPreview && (
-            <p className="font-mono text-sm text-brand-text-muted">Approx. {convertedPreview} IDR</p>
-          )}
-          {selectedEnv && (
-            <p className="font-mono text-sm text-brand-text-muted">Envelope: {selectedEnv.name}</p>
+            <p className="font-mono text-sm text-brand-text-muted">Approx. {convertedPreview}</p>
           )}
           {error && <p className="mt-2 font-mono text-sm text-red-500">{error}</p>}
         </div>
@@ -296,13 +417,79 @@ export default function TransactionEntry({
   );
 }
 
+function PickerShell({ title, onBack, children }: { title: string; onBack: () => void; children: ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
+      <div className="flex items-center justify-between bg-brand-accent px-4 pb-4 pt-7 text-white">
+        <button type="button" onClick={onBack} className="rounded-full bg-[#8AF4A6] px-4 py-2 text-sm font-semibold text-[#0F3C1B]">Back</button>
+        <h1 className="text-xl font-semibold">{title}</h1>
+        <div className="w-16" />
+      </div>
+      <div className="flex-1 overflow-auto">{children}</div>
+    </div>
+  );
+}
+
+function TappableRow({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className="flex w-full items-center justify-between gap-4 border-b border-brand-border px-4 py-4 last:border-b-0">
+      <span className="font-mono text-2xl text-brand-text">{label}</span>
+      <div className="min-w-0 flex-1 text-right">{children}</div>
+      <span className="text-brand-text-muted">›</span>
+    </button>
+  );
+}
+
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex items-center justify-between gap-4 border-b border-brand-border px-4 py-4 last:border-b-0">
       <span className="font-mono text-2xl text-brand-text">{label}</span>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0 flex-1 text-right">{children}</div>
     </label>
   );
+}
+
+function buildAllocationRows(args: {
+  txType: TxType;
+  amountMinor: number;
+  envelopeId: string;
+  fromEnvelopeId: string;
+  useSplits: boolean;
+  splits: SplitItem[];
+  splitMode: SplitMode;
+  currency: string;
+}): Array<{ envelope_id: string; amountMinor: number }> {
+  const { txType, amountMinor, envelopeId, fromEnvelopeId, useSplits, splits, splitMode, currency } = args;
+
+  if (txType === "expense") {
+    const finalSplits = useSplits
+      ? buildFinalSplits({ splits, mode: splitMode, totalAmountMinor: amountMinor, currency })
+      : [{ envelope_id: envelopeId, amountMinor: amountMinor }];
+    return finalSplits.filter((s) => s.envelope_id);
+  }
+
+  if (txType === "income") {
+    const targets = useSplits
+      ? buildFinalSplits({ splits, mode: splitMode, totalAmountMinor: amountMinor, currency })
+      : [{ envelope_id: envelopeId, amountMinor: amountMinor }];
+    return targets
+      .filter((s) => s.envelope_id)
+      .map((s) => ({ envelope_id: s.envelope_id, amountMinor: -Math.abs(s.amountMinor) }));
+  }
+
+  // transfer: debit source, credit destinations
+  const destinations = buildFinalSplits({
+    splits: splits.length > 0 ? splits : [{ envelope_id: envelopeId, value: "" }],
+    mode: splitMode,
+    totalAmountMinor: amountMinor,
+    currency,
+  }).filter((s) => s.envelope_id && s.envelope_id !== fromEnvelopeId);
+
+  if (!fromEnvelopeId || destinations.length === 0) return [];
+  return [
+    { envelope_id: fromEnvelopeId, amountMinor: amountMinor },
+    ...destinations.map((s) => ({ envelope_id: s.envelope_id, amountMinor: -Math.abs(s.amountMinor) })),
+  ];
 }
 
 function buildFinalSplits(args: {

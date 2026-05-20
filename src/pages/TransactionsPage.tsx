@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useHousehold } from "@/context/HouseholdContext";
 import { supabase } from "@/lib/supabase";
-import type { Transaction, Envelope } from "@/lib/types";
+import type { Transaction, Envelope, Category } from "@/lib/types";
 import TransactionList from "@/components/transactions/TransactionList";
 import TransactionEntry from "@/components/transactions/TransactionEntry";
 
@@ -9,11 +9,12 @@ export default function TransactionsPage() {
   const { household, dbUser, fxRates } = useHousehold();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [txOpen, setTxOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!household) return;
-    const [{ data: txs }, { data: envs }] = await Promise.all([
+    const [{ data: txs }, { data: envs }, { data: cats }] = await Promise.all([
       supabase
         .from("transactions")
         .select("*, allocations:transaction_allocations(*)")
@@ -22,9 +23,11 @@ export default function TransactionsPage() {
         .order("created_at", { ascending: false })
         .limit(100),
       supabase.from("envelopes").select("*").eq("household_id", household.id),
+      supabase.from("categories").select("*").eq("household_id", household.id).order("sort_order"),
     ]);
     setTransactions(txs ?? []);
     setEnvelopes(envs ?? []);
+    setCategories(cats ?? []);
   }, [household]);
 
   useEffect(() => { load(); }, [load]);
@@ -56,6 +59,7 @@ export default function TransactionsPage() {
           onClose={() => setTxOpen(false)}
           onSaved={load}
           envelopes={envelopes}
+          categories={categories}
           dbUser={dbUser}
           household={household}
           fxRates={fxRates}

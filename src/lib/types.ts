@@ -45,10 +45,13 @@ export interface Trip {
   created_at: string;
 }
 
+export type TxType = "expense" | "income" | "transfer";
+
 export interface Transaction {
   id: string;
   household_id: string;
   user_id: string;
+  tx_type?: TxType;
   amount: number;
   currency: string;
   amount_idr_snapshot: number;

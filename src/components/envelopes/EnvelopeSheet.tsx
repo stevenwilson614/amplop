@@ -102,13 +102,14 @@ export default function EnvelopeSheet({ open, onClose, onSaved, householdId, cat
         </Field>
 
         <Field label="monthly budget">
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               type="number" required min="0" step="any"
               value={budgetValue} onChange={e => setBudgetValue(e.target.value)}
-              placeholder="0" className={`${inputCls} flex-1`}
+              placeholder="0"
+              className={`${inputCls} flex-1 text-2xl py-4`}
             />
-            <select value={budgetCurrency} onChange={e => setBudgetCurrency(e.target.value)} className={`${inputCls} w-24`}>
+            <select value={budgetCurrency} onChange={e => setBudgetCurrency(e.target.value)} className={`${inputCls} w-full sm:w-28 text-lg`}>
               {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>

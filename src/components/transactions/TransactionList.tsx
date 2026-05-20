@@ -1,4 +1,4 @@
-import type { Transaction, Envelope, FxRates } from "@/lib/types";
+import type { Transaction, Envelope, FxRates, TxType } from "@/lib/types";
 import { format, convert } from "@/lib/currency";
 
 interface Props {
@@ -8,11 +8,15 @@ interface Props {
   fxRates: FxRates;
 }
 
+const TYPE_LABELS: Record<TxType, string> = {
+  expense: "Expense",
+  income: "Income",
+  transfer: "Transfer",
+};
+
 export default function TransactionList({ transactions, envelopes, displayCurrency, fxRates }: Props) {
   const dc = displayCurrency;
   const envMap = new Map(envelopes.map(e => [e.id, e]));
-
-  // Group by date
   const grouped = groupByDate(transactions);
 
   if (transactions.length === 0) {
@@ -26,6 +30,7 @@ export default function TransactionList({ transactions, envelopes, displayCurren
           <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-2">{formatDate(date)}</p>
           <div className="space-y-2">
             {items.map(tx => {
+              const txType = tx.tx_type ?? "expense";
               const amountDisplay = dc === "IDR"
                 ? tx.amount_idr_snapshot
                 : convert(tx.amount_idr_snapshot, "IDR", dc, fxRates);
@@ -35,16 +40,21 @@ export default function TransactionList({ transactions, envelopes, displayCurren
                 .filter(Boolean)
                 .join(", ") ?? "";
 
+              const prefix = txType === "income" ? "+" : txType === "transfer" ? "↔" : "-";
+              const amountClass = txType === "income" ? "text-brand-accent" : "text-brand-text";
+
               return (
                 <div key={tx.id} className="flex items-center justify-between rounded-xl bg-brand-primary border border-brand-border p-3">
                   <div className="min-w-0">
                     <p className="font-mono text-sm text-brand-text font-semibold truncate">
-                      {tx.merchant_name || tx.notes || "—"}
+                      {tx.merchant_name || tx.notes || TYPE_LABELS[txType]}
                     </p>
-                    <p className="font-mono text-xs text-brand-text-muted truncate">{envNames}</p>
+                    <p className="font-mono text-xs text-brand-text-muted truncate">
+                      {TYPE_LABELS[txType]}{envNames ? ` · ${envNames}` : ""}
+                    </p>
                   </div>
-                  <span className="ml-3 font-mono text-sm font-semibold text-brand-text whitespace-nowrap">
-                    -{format(amountDisplay, dc)}
+                  <span className={`ml-3 font-mono text-sm font-semibold whitespace-nowrap ${amountClass}`}>
+                    {prefix}{format(amountDisplay, dc)}
                   </span>
                 </div>
               );

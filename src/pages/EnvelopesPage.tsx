@@ -226,9 +226,22 @@ export default function EnvelopesPage() {
             <button onClick={openAdd} className="mt-3 font-mono text-sm text-brand-accent">+ add envelope</button>
           </div>
         )}
-        {grouped.map(({ category, items }) => (
+        {grouped.map(({ category, items }) => {
+          const categoryMonthSpentIdr = items.reduce(
+            (sum, env) => sum + (monthSpentMap[env.id] ?? 0),
+            0
+          );
+          const categoryMonthDisplay = dc === "IDR"
+            ? categoryMonthSpentIdr
+            : convert(categoryMonthSpentIdr, "IDR", dc, fxRates);
+          return (
           <div key={category?.id ?? "__none__"}>
-            {category && <p className="mb-2 font-mono text-2xl font-semibold tracking-tight text-brand-text">{category.name}</p>}
+            {category && (
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="font-mono text-[26px] font-semibold tracking-tight text-brand-text">{category.name}</p>
+                <p className="font-mono text-sm text-brand-text-muted">{format(categoryMonthDisplay, dc)}</p>
+              </div>
+            )}
             <div className="space-y-2">
               {items.map(env => (
                 <EnvelopeCard
@@ -244,7 +257,8 @@ export default function EnvelopesPage() {
               ))}
             </div>
           </div>
-        ))}
+          );
+        })}
         {grouped.length > 0 && (
           <div className="border-t border-brand-border pt-4">
             <div className="flex items-center justify-between">
@@ -324,6 +338,7 @@ export default function EnvelopesPage() {
           onClose={() => setTxOpen(false)}
           onSaved={() => { load(); refetch(); }}
           envelopes={[...envelopes, ...tripEnvelopes]}
+          categories={categories}
           dbUser={dbUser}
           household={household}
           fxRates={fxRates}
