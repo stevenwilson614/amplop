@@ -1,11 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  content: [
-    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
       colors: {
@@ -21,10 +17,11 @@ const config: Config = {
         },
       },
       fontFamily: {
-        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
     },
   },
   plugins: [],
 };
+
 export default config;

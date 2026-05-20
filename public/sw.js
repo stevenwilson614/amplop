@@ -1,14 +1,8 @@
-// Phase 1 stub — expanded in Phase 9 with offline queue + app shell cache
-const CACHE_NAME = "amplop-v1";
-
-self.addEventListener("install", () => {
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(clients.claim());
-});
-
-self.addEventListener("fetch", () => {
-  // Phase 9: cache app shell, queue offline transactions in IndexedDB
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener("fetch", (e) => {
+  if (e.request.method !== "GET") return;
+  e.respondWith(
+    fetch(e.request).catch(() => caches.match(e.request))
+  );
 });
