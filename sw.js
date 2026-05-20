@@ -1,4 +1,4 @@
-const CACHE_VERSION = "amplop-v3";
+const CACHE_VERSION = "amplop-v4";
 
 self.addEventListener("install", () => self.skipWaiting());
 
