@@ -10,6 +10,7 @@ export interface DbUser {
   email: string;
   display_name: string;
   display_currency: string;
+  whale_facts_enabled?: boolean;
   created_at: string;
 }
 

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useNavigate, Link } from "react-router-dom";
 import { useHousehold } from "@/context/HouseholdContext";
@@ -22,6 +22,11 @@ export default function SettingsPage() {
   const { dbUser, household, fxRates, refetch } = useHousehold();
   const [displayName, setDisplayName] = useState(dbUser?.display_name ?? "");
   const [displayCurrency, setDisplayCurrency] = useState(dbUser?.display_currency ?? "IDR");
+  const [whaleFactsEnabled, setWhaleFactsEnabled] = useState(dbUser?.whale_facts_enabled !== false);
+
+  useEffect(() => {
+    setWhaleFactsEnabled(dbUser?.whale_facts_enabled !== false);
+  }, [dbUser?.whale_facts_enabled]);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -161,10 +166,21 @@ export default function SettingsPage() {
     setSaving(true);
     await supabase
       .from("users")
-      .update({ display_name: displayName, display_currency: displayCurrency })
+      .update({
+        display_name: displayName,
+        display_currency: displayCurrency,
+        whale_facts_enabled: whaleFactsEnabled,
+      })
       .eq("id", dbUser.id);
     await refetch();
     setSaving(false);
+  }
+
+  async function handleWhaleToggle(enabled: boolean) {
+    if (!dbUser) return;
+    setWhaleFactsEnabled(enabled);
+    await supabase.from("users").update({ whale_facts_enabled: enabled }).eq("id", dbUser.id);
+    await refetch();
   }
 
   async function handleSignOut() {
@@ -236,6 +252,34 @@ export default function SettingsPage() {
               {saving ? "saving..." : "save profile"}
             </button>
           </form>
+        </section>
+
+        {/* Whale facts */}
+        <section>
+          <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">fun</p>
+          <div className="flex items-center justify-between rounded-xl border border-brand-border bg-brand-primary p-4">
+            <div className="pr-4">
+              <p className="font-mono text-sm font-semibold text-brand-text">whale facts</p>
+              <p className="mt-1 font-mono text-xs text-brand-text-muted leading-relaxed">
+                Daily whale pic + fun fact. Tap the whale on any screen.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={whaleFactsEnabled}
+              onClick={() => handleWhaleToggle(!whaleFactsEnabled)}
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                whaleFactsEnabled ? "bg-brand-accent" : "bg-brand-border"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                  whaleFactsEnabled ? "left-[22px]" : "left-0.5"
+                }`}
+              />
+            </button>
+          </div>
         </section>
 
         {/* Household */}

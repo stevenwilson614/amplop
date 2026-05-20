@@ -1,7 +1,13 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useHousehold } from "@/context/HouseholdContext";
+
+interface OnboardLocationState {
+  joinCode?: string;
+  displayName?: string;
+  mode?: "join" | "create";
+}
 
 type Mode = "choose" | "create" | "join";
 
@@ -13,6 +19,8 @@ function errMsg(err: unknown): string {
 }
 
 export default function OnboardingPage() {
+  const location = useLocation();
+  const onboardState = (location.state as OnboardLocationState | null) ?? {};
   const [mode, setMode] = useState<Mode>("choose");
   const [displayName, setDisplayName] = useState("");
   const [householdName, setHouseholdName] = useState("");
@@ -22,6 +30,26 @@ export default function OnboardingPage() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const { refetch } = useHousehold();
+
+  useEffect(() => {
+    if (onboardState.mode === "join" || onboardState.joinCode) {
+      setMode("join");
+      if (onboardState.joinCode) setJoinCode(onboardState.joinCode);
+      if (onboardState.displayName) setDisplayName(onboardState.displayName);
+      return;
+    }
+    try {
+      const raw = sessionStorage.getItem("amplop_pending_join");
+      if (!raw) return;
+      const pending = JSON.parse(raw) as { joinCode?: string; displayName?: string };
+      sessionStorage.removeItem("amplop_pending_join");
+      if (pending.joinCode) {
+        setMode("join");
+        setJoinCode(pending.joinCode);
+        if (pending.displayName) setDisplayName(pending.displayName);
+      }
+    } catch { /* ignore */ }
+  }, [onboardState.joinCode, onboardState.displayName, onboardState.mode]);
 
   async function withUser(fn: (userId: string, email: string) => Promise<void>) {
     setLoading(true);
