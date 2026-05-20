@@ -13,16 +13,21 @@ export interface TransactionPrefill {
 
 interface Ctx {
   openTransaction: (envelope?: Envelope, prefill?: TransactionPrefill) => void;
+  setContextEnvelope: (envelope: Envelope | null) => void;
+  contextEnvelope: Envelope | null;
 }
 
 const TransactionModalCtx = createContext<Ctx>({
   openTransaction: () => {},
+  setContextEnvelope: () => {},
+  contextEnvelope: null,
 });
 
 export function TransactionModalProvider({ children }: { children: ReactNode }) {
   const { household, dbUser, fxRates, refetch } = useHousehold();
   const [open, setOpen] = useState(false);
   const [defaultEnvelope, setDefaultEnvelope] = useState<Envelope | undefined>();
+  const [contextEnvelope, setContextEnvelope] = useState<Envelope | null>(null);
   const [prefill, setPrefill] = useState<TransactionPrefill | undefined>();
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -77,7 +82,7 @@ export function TransactionModalProvider({ children }: { children: ReactNode }) 
   }, [openTransaction]);
 
   return (
-    <TransactionModalCtx.Provider value={{ openTransaction }}>
+    <TransactionModalCtx.Provider value={{ openTransaction, setContextEnvelope, contextEnvelope }}>
       {children}
       {dbUser && household && (
         <TransactionEntry

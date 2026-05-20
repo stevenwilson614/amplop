@@ -9,6 +9,7 @@ interface Props {
   paceMarkerPct?: number;
   displayCurrency: string;
   fxRates: FxRates;
+  isTrip?: boolean;
   onClick: () => void;
 }
 
@@ -19,6 +20,7 @@ export default function EnvelopeCard({
   paceMarkerPct = 0,
   displayCurrency,
   fxRates,
+  isTrip = false,
   onClick,
 }: Props) {
   const dc = displayCurrency;
@@ -46,7 +48,10 @@ export default function EnvelopeCard({
       className="w-full text-left border-b border-brand-border pb-1.5 active:opacity-80"
     >
       <div className="mb-0.5 flex items-center justify-between gap-3">
-        <span className="font-mono text-[15px] font-normal leading-tight text-brand-text">{envelope.name}</span>
+        <span className="font-mono text-[15px] font-normal leading-tight text-brand-text">
+          {isTrip && <span className="mr-1" aria-hidden>✈</span>}
+          {envelope.name}
+        </span>
         <span className={`font-mono text-[15px] font-normal leading-none ${over ? "text-red-500" : "text-brand-text"}`}>
           {format(balanceDisplay, dc)}
         </span>

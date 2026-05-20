@@ -34,7 +34,7 @@ export default function InsightsPage() {
   const load = useCallback(async () => {
     if (!household) return;
     const start = new Date();
-    start.setMonth(start.getMonth() - 5);
+    start.setMonth(start.getMonth() - 11);
     start.setDate(1);
     const startIso = start.toLocaleDateString("en-CA");
 

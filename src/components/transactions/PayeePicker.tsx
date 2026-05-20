@@ -75,7 +75,12 @@ export default function PayeePicker({ householdId, value, onSelect, onClose }: P
         <h1 className="text-xl font-semibold">Payee</h1>
         <button
           type="button"
-          onClick={() => onSelect(query.trim())}
+          onClick={() => {
+            const name = query.trim();
+            if (!name) return;
+            onSelect(name);
+            onClose();
+          }}
           className="rounded-full bg-[#8AF4A6] px-4 py-2 text-sm font-semibold text-[#0F3C1B]"
         >
           Add
@@ -114,13 +119,9 @@ export default function PayeePicker({ householdId, value, onSelect, onClose }: P
           </button>
         ))}
         {filtered.length === 0 && query.trim() && (
-          <button
-            type="button"
-            onClick={handleDone}
-            className="block w-full px-4 py-3 text-left text-base text-brand-accent"
-          >
-            Use &quot;{query.trim()}&quot;
-          </button>
+          <p className="px-4 py-3 text-sm text-brand-text-muted">
+            No matches — tap Add to use &quot;{query.trim()}&quot;
+          </p>
         )}
       </div>
     </div>

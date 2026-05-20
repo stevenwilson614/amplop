@@ -19,6 +19,7 @@ interface BudgetSnapshot {
     monthlyBudgetIdr: number;
     totalSpentIdr: number;
     balanceIdr: number;
+    avgMonthlySpendIdr: number;
     monthHistory: { month: string; spentIdr: number }[];
   }>;
 }
@@ -87,14 +88,15 @@ Deno.serve(async (req) => {
 function buildPrompt(snapshot: BudgetSnapshot): string {
   const lines = snapshot.envelopes.map((e) => {
     const history = e.monthHistory
-      .map((m) => `${m.month}: spent ${m.spentIdr} IDR (budget ${e.monthlyBudgetIdr})`)
+      .map((m) => `${m.month}: ${m.spentIdr} IDR spent`)
       .join("; ");
-    return `- ${e.name}: monthly budget ${e.monthlyBudgetIdr} IDR, lifetime spent ${e.totalSpentIdr}, balance ${e.balanceIdr}. History: ${history}`;
+    const avg = e.avgMonthlySpendIdr ?? 0;
+    return `- ${e.name}: monthly budget ${e.monthlyBudgetIdr} IDR, avg monthly spend ${avg} IDR, lifetime spent ${e.totalSpentIdr}, balance ${e.balanceIdr}. Last 12 months: ${history}`;
   }).join("\n");
 
-  return `You are a warm, concise household budget coach for a family using envelope budgeting in Indonesia (amounts in IDR minor units — whole rupiah, no decimals).
+  return `You are a warm, concise household budget coach for a family using envelope budgeting in Indonesia (amounts in IDR — whole rupiah, no decimals).
 
-Analyze these envelopes and recent monthly spending:
+Analyze these envelopes with up to 12 months of imported transaction history:
 
 ${lines}
 

@@ -14,6 +14,7 @@ export interface EnvelopeSnapshot {
   monthlyBudgetIdr: number;
   totalSpentIdr: number;
   balanceIdr: number;
+  avgMonthlySpendIdr: number;
   monthHistory: MonthSpend[];
 }
 
@@ -38,7 +39,7 @@ export function buildBudgetSnapshot(args: {
   displayCurrency: string;
   monthsBack?: number;
 }): BudgetSnapshot {
-  const { envelopes, spentMap, monthTxs, fxRates, displayCurrency, monthsBack = 6 } = args;
+  const { envelopes, spentMap, monthTxs, fxRates, displayCurrency, monthsBack = 12 } = args;
 
   const monthKeys = lastMonths(monthsBack);
   const historyMap: Record<string, Record<string, number>> = {};
@@ -62,6 +63,14 @@ export function buildBudgetSnapshot(args: {
       ? env.budget_amount
       : convert(env.budget_amount, env.budget_currency, "IDR", fxRates);
     const totalSpentIdr = spentMap[env.id] ?? 0;
+    const history = monthKeys.map((month) => ({
+      month,
+      spentIdr: historyMap[env.id]?.[month] ?? 0,
+    }));
+    const monthsWithSpend = history.filter((h) => h.spentIdr > 0);
+    const avgMonthlySpendIdr = monthsWithSpend.length
+      ? Math.round(monthsWithSpend.reduce((s, h) => s + h.spentIdr, 0) / monthsWithSpend.length)
+      : 0;
 
     return {
       id: env.id,
@@ -69,10 +78,8 @@ export function buildBudgetSnapshot(args: {
       monthlyBudgetIdr,
       totalSpentIdr,
       balanceIdr: monthlyBudgetIdr - totalSpentIdr,
-      monthHistory: monthKeys.map((month) => ({
-        month,
-        spentIdr: historyMap[env.id]?.[month] ?? 0,
-      })),
+      avgMonthlySpendIdr,
+      monthHistory: history,
     };
   });
 

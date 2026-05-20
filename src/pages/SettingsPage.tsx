@@ -1,14 +1,25 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useNavigate, Link } from "react-router-dom";
 import { useHousehold } from "@/context/HouseholdContext";
 import { CURRENCY_DECIMALS } from "@/lib/currency";
+import { parseImportCsv, importTransactionHistory, IMPORT_CSV_TEMPLATE } from "@/lib/importHistory";
+import {
+  isGoodbudgetCsv,
+  importGoodbudgetHistory,
+  previewGoodbudgetImport,
+  parseGoodbudgetCsv,
+  parseRemainingBalances,
+  syncEnvelopeRemainings,
+  REMAINING_BALANCES_TEMPLATE,
+} from "@/lib/goodbudgetImport";
+import type { Envelope, EnvelopeSpent } from "@/lib/types";
 
 const CURRENCIES = Object.keys(CURRENCY_DECIMALS);
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const { dbUser, household, refetch } = useHousehold();
+  const { dbUser, household, fxRates, refetch } = useHousehold();
   const [displayName, setDisplayName] = useState(dbUser?.display_name ?? "");
   const [displayCurrency, setDisplayCurrency] = useState(dbUser?.display_currency ?? "IDR");
   const [saving, setSaving] = useState(false);
@@ -16,6 +27,133 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState("");
+  const [importText, setImportText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState("");
+  const [importProgress, setImportProgress] = useState("");
+  const [syncBudgets, setSyncBudgets] = useState(true);
+  const [remainingText, setRemainingText] = useState("");
+  const [syncingRemainings, setSyncingRemainings] = useState(false);
+  const [remainingMsg, setRemainingMsg] = useState("");
+
+  const loadEnvelopes = useCallback(async (): Promise<Envelope[]> => {
+    if (!household) return [];
+    const { data } = await supabase
+      .from("envelopes")
+      .select("*")
+      .eq("household_id", household.id)
+      .order("sort_order");
+    return data ?? [];
+  }, [household]);
+
+  async function handleImportHistory() {
+    if (!household || !dbUser) return;
+    setImporting(true);
+    setImportMsg("");
+    setImportProgress("");
+    try {
+      const envelopes = await loadEnvelopes();
+      const text = importText.trim();
+      if (!text) {
+        setImportMsg("No CSV data to import.");
+        return;
+      }
+
+      if (isGoodbudgetCsv(text)) {
+        const rows = parseGoodbudgetCsv(text);
+        const preview = previewGoodbudgetImport(rows, envelopes);
+        if (preview.unmapped.length > 0) {
+          setImportMsg(`Warning: ${preview.unmapped.length} envelope(s) not matched: ${preview.unmapped.slice(0, 5).join(", ")}${preview.unmapped.length > 5 ? "…" : ""}`);
+        }
+
+        const result = await importGoodbudgetHistory({
+          csvText: text,
+          envelopes,
+          householdId: household.id,
+          userId: dbUser.id,
+          syncBudgets,
+          replaceExisting: true,
+          onProgress: (done, total) => setImportProgress(`${done} / ${total}`),
+        });
+
+        await refetch();
+        window.dispatchEvent(new CustomEvent("amplop:data-changed"));
+        setImportMsg(
+          `Imported ${result.imported} expenses, ${result.transfers} transfers. ` +
+          `Updated ${result.budgetsUpdated} envelope budgets. Skipped ${result.skipped}.` +
+          (result.errors.length ? ` First issues: ${result.errors.slice(0, 3).join("; ")}` : "")
+        );
+        if (result.imported > 0) setImportText("");
+        return;
+      }
+
+      const rows = parseImportCsv(text);
+      if (rows.length === 0) {
+        setImportMsg("No valid rows found. Check CSV format.");
+        return;
+      }
+      const result = await importTransactionHistory({
+        rows,
+        envelopes,
+        householdId: household.id,
+        userId: dbUser.id,
+        fxRates,
+      });
+      await refetch();
+      window.dispatchEvent(new CustomEvent("amplop:data-changed"));
+      const errNote = result.errors.length > 0 ? ` (${result.errors.length} issues)` : "";
+      setImportMsg(`Imported ${result.imported} transactions, skipped ${result.skipped}${errNote}.`);
+      if (result.imported > 0) setImportText("");
+    } catch (err) {
+      setImportMsg(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImporting(false);
+      setImportProgress("");
+    }
+  }
+
+  async function handleSyncRemainings() {
+    if (!household) return;
+    setSyncingRemainings(true);
+    setRemainingMsg("");
+    try {
+      const remainings = parseRemainingBalances(remainingText);
+      const keys = Object.keys(remainings);
+      if (keys.length === 0) {
+        setRemainingMsg("No balances parsed. Use format: Groceries: 2500000");
+        return;
+      }
+
+      const envelopes = await loadEnvelopes();
+      const { data: spentRows } = await supabase.rpc("get_envelope_spent");
+      const spentMap: Record<string, number> = {};
+      for (const row of (spentRows as EnvelopeSpent[] ?? [])) {
+        spentMap[row.envelope_id] = Number(row.spent_idr);
+      }
+
+      const result = await syncEnvelopeRemainings({ remainings, envelopes, spentMap });
+      await refetch();
+      window.dispatchEvent(new CustomEvent("amplop:data-changed"));
+
+      let msg = `Updated ${result.updated} envelope balance(s).`;
+      if (result.unmatched.length > 0) {
+        msg += ` Not matched: ${result.unmatched.join(", ")}`;
+      }
+      setRemainingMsg(msg);
+    } catch (err) {
+      setRemainingMsg(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncingRemainings(false);
+    }
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    setImportText(text);
+    e.target.value = "";
+  }
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -150,6 +288,83 @@ export default function SettingsPage() {
           <p className="mt-2 font-mono text-[10px] leading-relaxed text-brand-text-muted">
             Requires ANTHROPIC_API_KEY in Supabase secrets. Deploy: budget-insights edge function.
           </p>
+        </section>
+
+        {/* Import history */}
+        <section>
+          <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">import history</p>
+          <div className="space-y-3">
+            <p className="font-mono text-[11px] leading-relaxed text-brand-text-muted">
+              Upload a Goodbudget export (Date, Envelope, Name, Amount) or paste a simple CSV.
+              Goodbudget imports also sync monthly envelope budgets from your spending patterns.
+            </p>
+            <label className="block w-full rounded-lg border border-dashed border-brand-border bg-brand-surface px-4 py-3 text-center font-mono text-sm text-brand-accent cursor-pointer">
+              choose CSV file
+              <input type="file" accept=".csv,text/csv" onChange={handleImportFile} className="hidden" />
+            </label>
+            <label className="flex items-center gap-2 font-mono text-xs text-brand-text-muted">
+              <input
+                type="checkbox"
+                checked={syncBudgets}
+                onChange={(e) => setSyncBudgets(e.target.checked)}
+                className="rounded border-brand-border"
+              />
+              sync envelope budgets from Goodbudget spending
+            </label>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={IMPORT_CSV_TEMPLATE}
+              rows={6}
+              className={`${inputCls} resize-y font-mono text-xs leading-relaxed`}
+            />
+            {importProgress && (
+              <p className="font-mono text-xs text-brand-text-muted">Importing… {importProgress}</p>
+            )}
+            {importMsg && (
+              <p className={`font-mono text-xs ${importMsg.startsWith("Imported") || importMsg.includes("Updated") ? "text-brand-accent" : importMsg.startsWith("Warning") ? "text-amber-600" : "text-red-400"}`}>
+                {importMsg}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleImportHistory}
+              disabled={importing || !importText.trim()}
+              className="w-full rounded-lg border border-brand-border bg-brand-surface py-3 font-mono text-sm text-brand-text disabled:opacity-50"
+            >
+              {importing ? "importing..." : "import transactions"}
+            </button>
+          </div>
+        </section>
+
+        {/* Sync remaining balances */}
+        <section>
+          <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">sync balances</p>
+          <div className="space-y-3">
+            <p className="font-mono text-[11px] leading-relaxed text-brand-text-muted">
+              Paste how much is left in each envelope from Goodbudget (IDR). Import history first, then sync balances here.
+            </p>
+            <textarea
+              value={remainingText}
+              onChange={(e) => setRemainingText(e.target.value)}
+              placeholder={REMAINING_BALANCES_TEMPLATE}
+              rows={8}
+              className={`${inputCls} resize-y font-mono text-xs leading-relaxed`}
+            />
+            {remainingMsg && (
+              <p className={`font-mono text-xs ${remainingMsg.startsWith("Updated") ? "text-brand-accent" : "text-red-400"}`}>
+                {remainingMsg}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleSyncRemainings}
+              disabled={syncingRemainings || !remainingText.trim()}
+              className="w-full rounded-lg bg-brand-accent py-3 font-mono text-sm font-semibold text-brand-text disabled:opacity-50"
+            >
+              {syncingRemainings ? "syncing..." : "sync envelope balances"}
+            </button>
+          </div>
         </section>
 
         {/* FX Rates */}

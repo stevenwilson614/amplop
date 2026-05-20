@@ -13,7 +13,7 @@ import CategorySheet from "@/components/envelopes/CategorySheet";
 
 export default function EnvelopesPage() {
   const { household, dbUser, fxRates, refetch } = useHousehold();
-  const { openTransaction } = useTransactionModal();
+  const { openTransaction, setContextEnvelope } = useTransactionModal();
   const [categories, setCategories] = useState<Category[]>([]);
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
   const [spentMap, setSpentMap] = useState<Record<string, number>>({});
@@ -96,6 +96,15 @@ export default function EnvelopesPage() {
     window.addEventListener("amplop:data-changed", onChange);
     return () => window.removeEventListener("amplop:data-changed", onChange);
   }, [load]);
+
+  useEffect(() => {
+    if (detailOpen && detailEnvelope) {
+      setContextEnvelope(detailEnvelope);
+    } else {
+      setContextEnvelope(null);
+    }
+    return () => setContextEnvelope(null);
+  }, [detailOpen, detailEnvelope, setContextEnvelope]);
 
   function openAdd() {
     setEditEnvelope(undefined);
@@ -234,12 +243,12 @@ export default function EnvelopesPage() {
           return (
           <div key={category?.id ?? "__none__"}>
             {category && (
-              <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="mb-1 flex items-center justify-between gap-3">
                 <p className="font-mono text-[26px] font-semibold tracking-tight text-brand-text">{category.name}</p>
                 <p className="font-mono text-sm text-brand-text-muted">{format(categoryAvailableDisplay, dc)}</p>
               </div>
             )}
-            <div className="space-y-2">
+            <div className="space-y-1">
               {items.map(env => (
                 <EnvelopeCard
                   key={env.id}
@@ -258,9 +267,12 @@ export default function EnvelopesPage() {
         })}
         {activeTrip && (
           <div className="border-t border-brand-border pt-5">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-1 flex items-center justify-between">
               <div>
-                <p className="font-mono text-xl font-semibold text-brand-text">{activeTrip.name}</p>
+                <p className="font-mono text-xl font-semibold text-brand-text">
+                  <span className="mr-1" aria-hidden>✈</span>
+                  {activeTrip.name}
+                </p>
                 <p className="font-mono text-xs text-brand-text-muted">
                   {activeTrip.start_date} to {activeTrip.end_date} - local {activeTrip.currency}
                 </p>
@@ -282,7 +294,7 @@ export default function EnvelopesPage() {
                 </button>
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1">
               {tripEnvelopes.map((env) => (
                 <EnvelopeCard
                   key={env.id}
@@ -292,6 +304,7 @@ export default function EnvelopesPage() {
                   paceMarkerPct={perfMap[env.id]?.paceMarkerPct ?? 0}
                   displayCurrency={env.budget_currency}
                   fxRates={fxRates}
+                  isTrip
                   onClick={() => openDetail(env)}
                 />
               ))}
