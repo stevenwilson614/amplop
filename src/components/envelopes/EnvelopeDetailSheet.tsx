@@ -89,7 +89,7 @@ export default function EnvelopeDetailSheet({
           >
             {"<"}
           </button>
-          <h2 className="text-3xl font-semibold">{envelope.name}</h2>
+          <h2 className="text-2xl font-semibold">{envelope.name}</h2>
           <button
             type="button"
             onClick={onEdit}
@@ -106,15 +106,15 @@ export default function EnvelopeDetailSheet({
             <div className="mr-3 flex items-center gap-2">
               <div className="text-2xl">{mood}</div>
               <div>
-                <p className="text-lg font-semibold text-brand-text">{envelope.name}</p>
+                <p className="text-base font-semibold text-brand-text">{envelope.name}</p>
                 <p className={`text-xs ${paceGood ? "text-brand-accent" : "text-red-500"}`}>
                   {paceGood ? `Great! You are ahead ${format(Math.abs(paceDeltaDisplay), dc)}` : `Over pace by ${format(Math.abs(paceDeltaDisplay), dc)}`}
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-3xl font-semibold text-brand-text">{format(balanceDisplay, dc)}</p>
-              <p className="text-xl text-brand-text-muted">{format(availableDisplay, dc)}</p>
+              <p className="text-2xl font-semibold text-brand-text">{format(balanceDisplay, dc)}</p>
+              <p className="text-sm text-brand-text-muted">{format(availableDisplay, dc)}</p>
             </div>
           </div>
           <div className="mt-2 h-2 w-full rounded-full bg-[#EEF1F3]">
@@ -145,13 +145,13 @@ export default function EnvelopeDetailSheet({
                   return (
                     <div key={tx.id} className="flex items-start justify-between border-b border-brand-border px-4 py-2">
                       <div className="min-w-0">
-                        <p className="truncate text-[34px] leading-none text-brand-text">
+                        <p className="truncate text-lg leading-tight text-brand-text">
                           {tx.merchant_name || tx.notes || "Expense"}
                         </p>
-                        <p className="text-[30px] leading-none text-brand-text-muted">My Account</p>
+                        <p className="text-sm leading-tight text-brand-text-muted">My Account</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[34px] font-semibold leading-none text-brand-text">{format(amountDisplay, dc)}</p>
+                        <p className="text-lg font-medium leading-tight text-brand-text">{format(amountDisplay, dc)}</p>
                       </div>
                     </div>
                   );

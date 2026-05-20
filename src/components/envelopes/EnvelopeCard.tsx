@@ -44,18 +44,18 @@ export default function EnvelopeCard({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left border-b border-brand-border pb-3 active:opacity-80"
+      className="w-full text-left border-b border-brand-border pb-2 active:opacity-80"
     >
-      <div className="mb-1 flex items-start justify-between gap-3">
-        <span className="font-mono text-[20px] font-semibold leading-tight text-brand-text">{envelope.name}</span>
-        <span className={`font-mono text-[26px] font-semibold leading-none ${over ? "text-red-500" : "text-brand-text"}`}>
+      <div className="mb-0.5 flex items-start justify-between gap-3">
+        <span className="font-mono text-[18px] font-normal leading-tight text-brand-text">{envelope.name}</span>
+        <span className={`font-mono text-[18px] font-normal leading-none ${over ? "text-red-500" : "text-brand-text"}`}>
           {format(balanceDisplay, dc)}
         </span>
       </div>
       <div className="mb-1 flex justify-end">
-        <span className="font-mono text-[16px] leading-none text-brand-text-muted">{format(budgetDisplay, dc)}</span>
+        <span className="font-mono text-[13px] leading-none text-brand-text-muted">{format(budgetDisplay, dc)}</span>
       </div>
-      <div className="relative mb-1 h-2 w-full overflow-hidden rounded-full bg-[#EEF1F3]">
+      <div className="relative mb-0.5 h-2 w-full overflow-hidden rounded-full bg-[#EEF1F3]">
         <div
           className="absolute bottom-0 top-0 z-10 w-[2px] bg-[#1E2733]"
           style={{ left: `${Math.max(0, Math.min(100, paceMarkerPct))}%` }}
@@ -65,9 +65,8 @@ export default function EnvelopeCard({
           style={{ width: `${remainingPct}%` }}
         />
       </div>
-      <div className="flex justify-between">
-        <span className="font-mono text-xs text-brand-text-muted">{over ? "overspent" : "remaining"}</span>
-        <span className="font-mono text-xs text-brand-text-muted">
+      <div className="flex justify-end">
+        <span className="font-mono text-[11px] text-brand-text-muted">
           {format(spentDisplay, dc)} spent
         </span>
       </div>

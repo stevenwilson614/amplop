@@ -98,6 +98,15 @@ export default function EnvelopesPage() {
     setTxOpen(true);
   }
 
+  async function deleteActiveTrip() {
+    if (!activeTrip) return;
+    const confirmed = window.confirm(`Delete trip "${activeTrip.name}" and all trip envelopes?`);
+    if (!confirmed) return;
+    await supabase.from("trips").delete().eq("id", activeTrip.id);
+    await load();
+    refetch();
+  }
+
   const dc = dbUser?.display_currency ?? "IDR";
   const totalBudgetIdr = envelopes.reduce((sum, env) => {
     const budgetIdr = env.budget_currency === "IDR"
@@ -117,7 +126,7 @@ export default function EnvelopesPage() {
 
   // Group envelopes by category (plus uncategorised)
   const grouped = groupByCategory(envelopes, categories);
-  const perfMap = buildEnvelopePerfMap([...envelopes, ...tripEnvelopes], monthSpentMap, fxRates);
+  const perfMap = buildEnvelopePerfMap([...envelopes, ...tripEnvelopes], monthSpentMap, spentMap, fxRates, activeTrip);
 
   return (
     <div className="flex min-h-full flex-col bg-brand-surface">
@@ -165,7 +174,7 @@ export default function EnvelopesPage() {
         {grouped.map(({ category, items }) => (
           <div key={category?.id ?? "__none__"}>
             {category && <p className="mb-2 font-mono text-2xl font-semibold tracking-tight text-brand-text">{category.name}</p>}
-            <div className="space-y-4">
+            <div className="space-y-2">
               {items.map(env => (
                 <EnvelopeCard
                   key={env.id}
@@ -196,20 +205,29 @@ export default function EnvelopesPage() {
           <div className="border-t border-brand-border pt-5">
             <div className="mb-2 flex items-center justify-between">
               <div>
-                <p className="font-mono text-2xl font-semibold text-brand-text">{activeTrip.name}</p>
+                <p className="font-mono text-xl font-semibold text-brand-text">{activeTrip.name}</p>
                 <p className="font-mono text-xs text-brand-text-muted">
                   {activeTrip.start_date} to {activeTrip.end_date} - local {activeTrip.currency}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setTripSheetOpen(true)}
-                className="rounded-lg border border-brand-border px-2 py-1 text-xs font-semibold text-brand-text-muted"
-              >
-                add categories
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTripSheetOpen(true)}
+                  className="rounded-lg border border-brand-border px-2 py-1 text-xs font-semibold text-brand-text-muted"
+                >
+                  add categories
+                </button>
+                <button
+                  type="button"
+                  onClick={deleteActiveTrip}
+                  className="rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-500"
+                >
+                  delete trip
+                </button>
+              </div>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {tripEnvelopes.map((env) => (
                 <EnvelopeCard
                   key={env.id}
@@ -223,7 +241,7 @@ export default function EnvelopesPage() {
                 />
               ))}
             </div>
-            <p className="mt-3 text-xs text-brand-text-muted">
+            <p className="mt-2 text-xs text-brand-text-muted">
               Trip total {format(tripBudgetMinor, activeTrip.currency)} - spent {format(tripSpentLocal, activeTrip.currency)}.
             </p>
           </div>
@@ -312,12 +330,14 @@ type PerfMap = Record<string, { availableIdr: number; monthSpentIdr: number; pac
 function buildEnvelopePerfMap(
   envelopes: Envelope[],
   monthSpentMap: Record<string, number>,
-  fxRates: Record<string, number>
+  spentMap: Record<string, number>,
+  fxRates: Record<string, number>,
+  activeTrip: Trip | null
 ): PerfMap {
   const now = new Date();
   const day = now.getDate();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const paceFactor = day / Math.max(1, daysInMonth);
+  const monthPaceFactor = day / Math.max(1, daysInMonth);
   const perf: PerfMap = {};
 
   for (const env of envelopes) {
@@ -325,12 +345,21 @@ function buildEnvelopePerfMap(
       ? env.budget_amount
       : convert(env.budget_amount, env.budget_currency, "IDR", fxRates);
 
-    const created = new Date(env.created_at);
-    const monthsElapsed = Math.max(1, (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth()) + 1);
-    const availableIdr = monthlyBudgetIdr * monthsElapsed;
+    const isTripEnvelope = Boolean(env.trip_id && activeTrip && env.trip_id === activeTrip.id);
+    const availableIdr = isTripEnvelope ? monthlyBudgetIdr : (() => {
+      const created = new Date(env.created_at);
+      const monthsElapsed = Math.max(1, (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth()) + 1);
+      return monthlyBudgetIdr * monthsElapsed;
+    })();
+
     const monthSpentIdr = monthSpentMap[env.id] ?? 0;
-    const expectedByToday = Math.round(monthlyBudgetIdr * paceFactor);
-    const paceDeltaIdr = expectedByToday - monthSpentIdr;
+    const tripSpentIdr = spentMap[env.id] ?? 0;
+    const paceFactor = isTripEnvelope && activeTrip
+      ? getTripPaceFactor(activeTrip, now)
+      : monthPaceFactor;
+    const expectedByToday = Math.round(availableIdr * paceFactor);
+    const actualForPace = isTripEnvelope ? tripSpentIdr : monthSpentIdr;
+    const paceDeltaIdr = expectedByToday - actualForPace;
     const paceMarkerPct = Math.max(0, Math.min(100, Math.round((1 - paceFactor) * 100)));
 
     perf[env.id] = {
@@ -342,4 +371,14 @@ function buildEnvelopePerfMap(
   }
 
   return perf;
+}
+
+function getTripPaceFactor(trip: Trip, now: Date): number {
+  const start = new Date(`${trip.start_date}T00:00:00`).getTime();
+  const end = new Date(`${trip.end_date}T23:59:59`).getTime();
+  if (end <= start) return 1;
+  const current = Math.min(Math.max(now.getTime(), start), end);
+  const total = end - start;
+  const elapsed = current - start;
+  return Math.max(0, Math.min(1, elapsed / total));
 }
