@@ -38,10 +38,18 @@ interface Props {
   dayLabel?: string;
   showClose?: boolean;
   onClose?: () => void;
+  showBack?: boolean;
+  onBack?: () => void;
+  showForward?: boolean;
+  onForward?: () => void;
+  forwardLabel?: string;
   className?: string;
 }
 
-export default function WhaleFactCard({ fact, dayLabel, showClose, onClose, className = "" }: Props) {
+export default function WhaleFactCard({
+  fact, dayLabel, showClose, onClose, showBack, onBack, showForward, onForward, forwardLabel = "→",
+  className = "",
+}: Props) {
   const [imgSrc, setImgSrc] = useState(() => resolveWhaleImageSrc(fact.slug, fact.image));
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -67,6 +75,26 @@ export default function WhaleFactCard({ fact, dayLabel, showClose, onClose, clas
     <article
       className={`relative flex flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_16px_48px_rgba(15,28,46,0.2)] ${className}`}
     >
+      {showBack && onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Previous day whale"
+          className="absolute left-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-[#1a3d6b] text-lg font-bold text-white shadow-md"
+        >
+          ←
+        </button>
+      )}
+      {showForward && onForward && (
+        <button
+          type="button"
+          onClick={onForward}
+          aria-label="Next day toward today"
+          className="absolute left-14 top-4 z-20 flex h-9 items-center justify-center rounded-full bg-[#2a6dad] px-3 font-mono text-xs font-semibold text-white shadow-md"
+        >
+          {forwardLabel}
+        </button>
+      )}
       {showClose && onClose && (
         <button
           type="button"

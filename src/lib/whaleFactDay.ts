@@ -2,14 +2,35 @@ import { WHALE_FACTS } from "@/data/whaleFacts";
 
 const EPOCH = new Date("2024-01-01T00:00:00Z").getTime();
 
+export function whaleFactCount(): number {
+  return WHALE_FACTS.length;
+}
+
 export function getTodayDayIndex(): number {
   const days = Math.floor((Date.now() - EPOCH) / 86_400_000);
   const n = WHALE_FACTS.length;
   return ((days % n) + n) % n;
 }
 
+/** offset 0 = today, -1 = yesterday, -2 = two days ago, etc. */
+export function getDayIndexWithOffset(offset: number): number {
+  const n = WHALE_FACTS.length;
+  const today = getTodayDayIndex();
+  return ((today + offset) % n + n) % n;
+}
+
+export function getWhaleFactWithOffset(offset: number) {
+  return WHALE_FACTS[getDayIndexWithOffset(offset)];
+}
+
 export function getTodayWhaleFact() {
-  return WHALE_FACTS[getTodayDayIndex()];
+  return getWhaleFactWithOffset(0);
+}
+
+export function dayLabelForOffset(offset: number): string {
+  if (offset === 0) return "whale of the day";
+  if (offset === -1) return "yesterday's whale";
+  return `${-offset} days ago`;
 }
 
 export function whaleImageUrl(filename: string): string {

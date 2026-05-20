@@ -1,6 +1,6 @@
 import type { WhaleFactEntry } from "@/data/whaleFacts";
 
-/** 15 preview cards — images via whaleImageCatalog (direct Wikimedia + fallbacks). */
+/** 15 whale-of-the-day cards (cycles every 15 days; expand to 60 later). */
 export const WHALE_FACT_MOCKUPS: WhaleFactEntry[] = [
   {
     dayIndex: 0,

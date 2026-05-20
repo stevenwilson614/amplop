@@ -3,30 +3,45 @@ import { useHousehold } from "@/context/HouseholdContext";
 import WhaleFabIcon from "@/components/ui/WhaleFabIcon";
 import WhaleFactCard from "@/components/whale/WhaleFactCard";
 import {
-  getTodayWhaleFact,
+  dayLabelForOffset,
+  getWhaleFactWithOffset,
   hasSeenTodayWhale,
   isWhaleFactsEnabled,
   markSeenTodayWhale,
+  whaleFactCount,
 } from "@/lib/whaleFactDay";
 
 export default function WhaleBuddy() {
   const { dbUser } = useHousehold();
   const [open, setOpen] = useState(false);
+  const [viewOffset, setViewOffset] = useState(0);
 
   const enabled = isWhaleFactsEnabled(dbUser);
-  const fact = getTodayWhaleFact();
   const userId = dbUser?.id ?? "";
+  const total = whaleFactCount();
+  const fact = getWhaleFactWithOffset(viewOffset);
+  const canGoBack = viewOffset > -(total - 1);
+  const canGoForward = viewOffset < 0;
 
   useEffect(() => {
     if (!enabled || !userId) return;
-    if (!hasSeenTodayWhale(userId)) setOpen(true);
+    if (!hasSeenTodayWhale(userId)) {
+      setViewOffset(0);
+      setOpen(true);
+    }
   }, [enabled, userId]);
 
   if (!enabled || !dbUser) return null;
 
   function dismiss() {
-    markSeenTodayWhale(userId);
+    if (viewOffset === 0) markSeenTodayWhale(userId);
     setOpen(false);
+    setViewOffset(0);
+  }
+
+  function openToday() {
+    setViewOffset(0);
+    setOpen(true);
   }
 
   const unseen = !hasSeenTodayWhale(userId);
@@ -35,7 +50,7 @@ export default function WhaleBuddy() {
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openToday}
         aria-label="Today's whale fact"
         className={`absolute bottom-[7.5rem] right-3 z-[65] flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform active:scale-95 ${
           unseen
@@ -58,7 +73,17 @@ export default function WhaleBuddy() {
             role="dialog"
             aria-labelledby="whale-fact-title"
           >
-            <WhaleFactCard fact={fact} showClose onClose={dismiss} />
+            <WhaleFactCard
+              fact={fact}
+              dayLabel={dayLabelForOffset(viewOffset)}
+              showClose
+              onClose={dismiss}
+              showBack={canGoBack}
+              onBack={() => setViewOffset((o) => o - 1)}
+              showForward={canGoForward}
+              onForward={() => setViewOffset((o) => Math.min(o + 1, 0))}
+              forwardLabel={viewOffset === -1 ? "today →" : "→"}
+            />
           </div>
         </div>
       )}
