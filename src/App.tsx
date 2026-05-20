@@ -20,13 +20,7 @@ function AppShell() {
     if (!loading && needsOnboarding) navigate("/onboard", { replace: true });
   }, [loading, needsOnboarding, navigate]);
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-brand-bg">
-        <span className="font-mono text-sm text-brand-text-muted">loading...</span>
-      </div>
-    );
-  }
+  if (loading) return <Spinner />;
 
   return (
     <div className="flex flex-col h-screen bg-brand-bg">
@@ -47,34 +41,40 @@ function AuthGuard({ session }: { session: Session | null }) {
   );
 }
 
+function Spinner() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-brand-bg">
+      <span className="font-mono text-sm text-brand-text-muted">loading...</span>
+    </div>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function init() {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      if (code) {
-        await supabase.auth.exchangeCodeForSession(code).catch(() => {});
-        window.history.replaceState({}, "", window.location.pathname);
-      }
-      const { data: { session } } = await supabase.auth.getSession();
+    // PKCE fallback: if magic link was clicked in the right browser context
+    const code = new URLSearchParams(window.location.search).get("code");
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code)
+        .catch(() => {})
+        .finally(() => window.history.replaceState({}, "", window.location.pathname));
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
-    }
-    init();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => setSession(s));
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => {
+      setSession(s);
+      setLoading(false);
+    });
     return () => subscription.unsubscribe();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-brand-bg">
-        <span className="font-mono text-sm text-brand-text-muted">loading...</span>
-      </div>
-    );
-  }
+  if (loading) return <Spinner />;
 
   return (
     <HashRouter>
