@@ -11,6 +11,7 @@ import TransactionsPage from "@/pages/TransactionsPage";
 import InsightsPage from "@/pages/InsightsPage";
 import VoicePage from "@/pages/VoicePage";
 import SettingsPage from "@/pages/SettingsPage";
+import WhaleFactsPreviewPage from "@/pages/WhaleFactsPreviewPage";
 import BottomNav from "@/components/BottomNav";
 import WhaleBuddy from "@/components/whale/WhaleBuddy";
 
@@ -113,6 +114,7 @@ export default function App() {
     <HashRouter>
       <Routes>
         <Route path="/login" element={session ? <PostLoginRedirect /> : <LoginPage />} />
+        <Route path="/whale-preview" element={<WhaleFactsPreviewPage />} />
         <Route element={<AuthGuard session={session} />}>
           <Route path="/onboard" element={<OnboardingPage />} />
           <Route index element={<Navigate to="/envelopes" replace />} />

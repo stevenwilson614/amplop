@@ -1,3 +1,5 @@
+import { commonsPhotoUrl } from "@/lib/commonsPhoto";
+
 export interface WhaleFactEntry {
   dayIndex: number;
   slug: string;
@@ -19,7 +21,7 @@ export const WHALE_FACTS: WhaleFactEntry[] = [
     tagline: "Nature's gentle giant",
     fact: "The blue whale is the largest animal ever known to have lived — even the biggest dinosaurs were smaller. Its heart alone can weigh as much as a small car!",
     highlight: "as much as a small car!",
-    image: "001-blue-whale-size.jpg",
+    image: commonsPhotoUrl("Anim1754_-_Museum_of_Natural_History_-_Blue_Whale.jpg"),
     credit: "Photo: NOAA / Wikimedia Commons (public domain)",
   },
 ];

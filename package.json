@@ -11,7 +11,8 @@
     "import:goodbudget": "node scripts/import-goodbudget.mjs",
     "sync:remainings": "node scripts/sync-remainings.mjs",
     "provision:user": "node scripts/provision-user.mjs",
-    "fix:household": "node scripts/fix-household-member.mjs"
+    "fix:household": "node scripts/fix-household-member.mjs",
+    "whales:download": "node scripts/download-whale-images.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
