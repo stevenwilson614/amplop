@@ -14,11 +14,11 @@
     <title>Amplop</title>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/amplop/sw.js').catch(() => {});
+        navigator.serviceWorker.register('/amplop/sw.js?v=3').then((reg) => reg.update()).catch(() => {});
       }
     </script>
-    <script type="module" crossorigin src="/amplop/assets/index-LjDYwTP2.js"></script>
-    <link rel="stylesheet" crossorigin href="/amplop/assets/index-Cb8HEFLs.css">
+    <script type="module" crossorigin src="/amplop/assets/index-CnsJycFW.js"></script>
+    <link rel="stylesheet" crossorigin href="/amplop/assets/index-DaMCCICc.css">
   </head>
   <body>
     <div id="root"></div>
