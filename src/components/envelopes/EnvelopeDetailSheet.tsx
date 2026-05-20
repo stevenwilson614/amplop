@@ -4,6 +4,7 @@ import type { Envelope, Transaction } from "@/lib/types";
 import type { FxRates } from "@/lib/types";
 import { convert, format } from "@/lib/currency";
 import WhaleMood from "@/components/ui/WhaleMood";
+import SwipeToDeleteRow from "@/components/ui/SwipeToDeleteRow";
 
 interface Props {
   open: boolean;
@@ -67,6 +68,7 @@ export default function EnvelopeDetailSheet({
   const balanceIdr = availableIdr - spentIdr;
   const balanceDisplay = dc === "IDR" ? balanceIdr : convert(balanceIdr, "IDR", dc, fxRates);
   const availableDisplay = dc === "IDR" ? availableIdr : convert(availableIdr, "IDR", dc, fxRates);
+  const isOverBudget = balanceIdr < 0;
   const paceGood = paceDeltaIdr >= 0;
   const paceDeltaDisplay = dc === "IDR" ? Math.abs(paceDeltaIdr) : convert(Math.abs(paceDeltaIdr), "IDR", dc, fxRates);
 
@@ -81,13 +83,27 @@ export default function EnvelopeDetailSheet({
     const dailyRateIdr = isTripEnvelope
       ? Math.max(1, Math.round(budgetIdr / Math.max(1, tripDaysRemaining)))
       : Math.max(1, Math.round(budgetIdr / daysInMonth));
-    const daysToRecover = Math.max(1, Math.ceil(Math.abs(paceDeltaIdr) / dailyRateIdr));
 
+    if (isOverBudget) {
+      const daysToRecover = Math.max(1, Math.ceil(Math.abs(balanceIdr) / dailyRateIdr));
+      const behindAmount = dc === "IDR" ? Math.abs(balanceIdr) : convert(Math.abs(balanceIdr), "IDR", dc, fxRates);
+      return `You're behind by ${format(behindAmount, dc)}. Stop spending for ${daysToRecover} days.`;
+    }
+    const daysToRecover = Math.max(1, Math.ceil(Math.abs(paceDeltaIdr) / dailyRateIdr));
     if (paceGood) {
       return `Great! You're ahead by ${format(paceDeltaDisplay, dc)}`;
     }
-    return `You're behind by ${format(paceDeltaDisplay, dc)}, stop spending for ${daysToRecover} days!`;
-  }, [envelope, paceDeltaIdr, paceDeltaDisplay, dc, fxRates, isTripEnvelope, tripDaysRemaining, paceGood]);
+    return `You're behind by ${format(paceDeltaDisplay, dc)}. Stop spending for ${daysToRecover} days.`;
+  }, [envelope, balanceIdr, paceDeltaIdr, paceDeltaDisplay, dc, fxRates, isTripEnvelope, tripDaysRemaining, isOverBudget, paceGood]);
+
+  const whaleHappy = !isOverBudget && paceGood;
+
+  async function handleDeleteTx(txId: string) {
+    const { error } = await supabase.from("transactions").delete().eq("id", txId);
+    if (error) return;
+    setTxs((prev) => prev.filter((t) => t.id !== txId));
+    window.dispatchEvent(new CustomEvent("amplop:data-changed"));
+  }
 
   const grouped = useMemo(() => {
     const map = new Map<string, Transaction[]>();
@@ -130,7 +146,7 @@ export default function EnvelopeDetailSheet({
         <div className="border-b border-brand-border px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-brand-accent shadow-sm">
-              <WhaleMood happy={paceGood} className="h-16 w-16" />
+              <WhaleMood happy={whaleHappy} className="h-16 w-16" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="relative h-[10px] w-full overflow-visible bg-[#EEF1F3]">
@@ -155,7 +171,7 @@ export default function EnvelopeDetailSheet({
               <p className="text-xs text-brand-text-muted">{format(availableDisplay, dc)}</p>
             </div>
           </div>
-          <p className={`mt-2 text-sm ${paceGood ? "text-brand-accent" : "text-red-500"}`}>
+          <p className={`mt-2 text-sm ${whaleHappy ? "text-brand-accent" : "text-red-500"}`}>
             {paceMessage}
           </p>
           <button
@@ -184,17 +200,19 @@ export default function EnvelopeDetailSheet({
                   const poster = tx.user?.display_name?.trim() || "Unknown";
                   const merchant = tx.merchant_name || tx.notes || "Expense";
                   return (
-                    <div key={tx.id} className="flex items-start justify-between border-b border-brand-border px-4 py-2">
-                      <div className="min-w-0 pr-3">
-                        <p className="truncate text-lg font-medium leading-tight text-brand-text">
-                          {merchant}
-                        </p>
-                        <p className="text-sm leading-tight text-brand-text-muted">{poster}</p>
+                    <SwipeToDeleteRow key={tx.id} onDelete={() => handleDeleteTx(tx.id)}>
+                      <div className="flex items-start justify-between border-b border-brand-border px-4 py-2">
+                        <div className="min-w-0 pr-3">
+                          <p className="truncate text-lg font-medium leading-tight text-brand-text">
+                            {merchant}
+                          </p>
+                          <p className="text-sm leading-tight text-brand-text-muted">{poster}</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-base font-medium leading-tight text-brand-text">{format(amountDisplay, dc)}</p>
+                        </div>
                       </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-base font-medium leading-tight text-brand-text">{format(amountDisplay, dc)}</p>
-                      </div>
-                    </div>
+                    </SwipeToDeleteRow>
                   );
                 })}
               </div>
