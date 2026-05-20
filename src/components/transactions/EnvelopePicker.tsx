@@ -33,7 +33,7 @@ export default function EnvelopePicker({
   const grouped = useMemo(() => groupByCategory(envelopes, categories), [envelopes, categories]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
+    <div className="fixed inset-0 z-[85] flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
       <div className="flex items-center justify-between bg-brand-accent px-4 pb-4 pt-7 text-white">
         <button
           type="button"

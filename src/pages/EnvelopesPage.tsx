@@ -4,8 +4,8 @@ import { supabase } from "@/lib/supabase";
 import type { Envelope, Category, EnvelopeSpent, Trip } from "@/lib/types";
 import EnvelopeCard from "@/components/envelopes/EnvelopeCard";
 import EnvelopeSheet from "@/components/envelopes/EnvelopeSheet";
-import TransactionEntry from "@/components/transactions/TransactionEntry";
 import { convert, format } from "@/lib/currency";
+import { useTransactionModal } from "@/context/TransactionModalContext";
 import TripPlannerSheet from "@/components/trips/TripPlannerSheet";
 import EnvelopeDetailSheet from "@/components/envelopes/EnvelopeDetailSheet";
 import EditBudgetMode from "@/components/envelopes/EditBudgetMode";
@@ -13,13 +13,12 @@ import CategorySheet from "@/components/envelopes/CategorySheet";
 
 export default function EnvelopesPage() {
   const { household, dbUser, fxRates, refetch } = useHousehold();
+  const { openTransaction } = useTransactionModal();
   const [categories, setCategories] = useState<Category[]>([]);
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
   const [spentMap, setSpentMap] = useState<Record<string, number>>({});
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editEnvelope, setEditEnvelope] = useState<Envelope | undefined>();
-  const [txOpen, setTxOpen] = useState(false);
-  const [defaultEnvelope, setDefaultEnvelope] = useState<Envelope | undefined>();
   const [tripSheetOpen, setTripSheetOpen] = useState(false);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [tripEnvelopes, setTripEnvelopes] = useState<Envelope[]>([]);
@@ -92,6 +91,12 @@ export default function EnvelopesPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    function onChange() { load(); }
+    window.addEventListener("amplop:data-changed", onChange);
+    return () => window.removeEventListener("amplop:data-changed", onChange);
+  }, [load]);
+
   function openAdd() {
     setEditEnvelope(undefined);
     setSheetOpen(true);
@@ -107,15 +112,9 @@ export default function EnvelopesPage() {
     setDetailOpen(true);
   }
 
-  function openTx(env?: Envelope) {
-    setDefaultEnvelope(env);
-    setTxOpen(true);
-  }
-
   function openTxFromDetail() {
     if (!detailEnvelope) return;
-    setDetailOpen(false);
-    openTx(detailEnvelope);
+    openTransaction(detailEnvelope);
   }
 
   function tripDaysRemaining(trip: Trip): number {
@@ -140,10 +139,7 @@ export default function EnvelopesPage() {
       : convert(env.budget_amount, env.budget_currency, "IDR", fxRates);
     return sum + budgetIdr;
   }, 0);
-  const totalSpentIdr = envelopes.reduce((sum, env) => sum + (spentMap[env.id] ?? 0), 0);
-  const totalAvailableIdr = totalBudgetIdr - totalSpentIdr;
   const totalBudgetDisplay = dc === "IDR" ? totalBudgetIdr : convert(totalBudgetIdr, "IDR", dc, fxRates);
-  const totalAvailableDisplay = dc === "IDR" ? totalAvailableIdr : convert(totalAvailableIdr, "IDR", dc, fxRates);
   const tripBudgetMinor = tripEnvelopes.reduce((sum, env) => sum + env.budget_amount, 0);
   const tripSpentMinor = tripEnvelopes.reduce((sum, env) => sum + (spentMap[env.id] ?? 0), 0);
   const tripSpentLocal = activeTrip
@@ -163,7 +159,7 @@ export default function EnvelopesPage() {
       <div className="sticky top-0 z-10 border-b border-brand-border bg-brand-accent px-4 pb-4 pt-6 text-white">
         <div className="flex items-center justify-between">
           <button
-            className="rounded-full bg-[#8AF4A6] px-4 py-2 font-mono text-sm font-semibold text-[#0F3C1B]"
+            className="rounded-full bg-[#8AF4A6] px-5 py-2.5 font-mono text-base font-semibold text-[#0F3C1B]"
             type="button"
             onClick={() => setEditModeOpen(true)}
           >
@@ -173,7 +169,7 @@ export default function EnvelopesPage() {
           <div className="relative">
             <button
               onClick={(e) => { e.stopPropagation(); setPlusMenuOpen((v) => !v); }}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#8AF4A6] text-2xl leading-none text-[#0F3C1B]"
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-[#8AF4A6] text-3xl leading-none text-[#0F3C1B]"
               type="button"
             >
               +
@@ -259,17 +255,6 @@ export default function EnvelopesPage() {
           </div>
           );
         })}
-        {grouped.length > 0 && (
-          <div className="border-t border-brand-border pt-4">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-2xl font-semibold tracking-tight text-brand-text">Available</span>
-              <span className={`font-mono text-[34px] font-semibold leading-none ${totalAvailableDisplay < 0 ? "text-red-500" : "text-brand-text"}`}>
-                {format(totalAvailableDisplay, dc)}
-              </span>
-            </div>
-          </div>
-        )}
-
         {activeTrip && (
           <div className="border-t border-brand-border pt-5">
             <div className="mb-2 flex items-center justify-between">
@@ -317,12 +302,6 @@ export default function EnvelopesPage() {
         )}
       </div>
 
-      {/* FAB: add transaction */}
-      <button
-        onClick={() => openTx()}
-        className="fixed bottom-24 right-6 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-brand-accent text-3xl leading-none text-white shadow-lg sm:right-[calc((100vw-430px)/2+1.5rem)]"
-      >+</button>
-
       <EnvelopeSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
@@ -331,20 +310,6 @@ export default function EnvelopesPage() {
         categories={categories}
         envelope={editEnvelope}
       />
-
-      {dbUser && household && (
-        <TransactionEntry
-          open={txOpen}
-          onClose={() => setTxOpen(false)}
-          onSaved={() => { load(); refetch(); }}
-          envelopes={[...envelopes, ...tripEnvelopes]}
-          categories={categories}
-          dbUser={dbUser}
-          household={household}
-          fxRates={fxRates}
-          defaultEnvelope={defaultEnvelope}
-        />
-      )}
 
       <TripPlannerSheet
         open={tripSheetOpen}

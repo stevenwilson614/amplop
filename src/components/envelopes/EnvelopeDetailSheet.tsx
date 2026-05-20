@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import type { Envelope, Transaction } from "@/lib/types";
 import type { FxRates } from "@/lib/types";
 import { convert, format } from "@/lib/currency";
+import WhaleMood from "@/components/ui/WhaleMood";
 
 interface Props {
   open: boolean;
@@ -70,7 +71,6 @@ export default function EnvelopeDetailSheet({
   const availableDisplay = dc === "IDR" ? availableIdr : convert(availableIdr, "IDR", dc, fxRates);
   const paceGood = paceDeltaIdr >= 0;
   const paceDeltaDisplay = dc === "IDR" ? Math.abs(paceDeltaIdr) : convert(Math.abs(paceDeltaIdr), "IDR", dc, fxRates);
-  const mood = paceGood ? ":-)" : ":-(";
 
   const paceMessage = useMemo(() => {
     if (!envelope) return "";
@@ -107,7 +107,7 @@ export default function EnvelopeDetailSheet({
     : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-brand-surface sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
+    <div className="fixed inset-0 bottom-0 z-40 flex flex-col bg-brand-surface pb-24 sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
       <div className="bg-brand-accent px-4 pb-4 pt-6 text-white">
         <div className="flex items-center justify-between">
           <button
@@ -128,11 +128,11 @@ export default function EnvelopeDetailSheet({
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-brand-surface pb-24">
+      <div className="flex-1 overflow-auto bg-brand-surface pb-4">
         <div className="border-b border-brand-border px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="mr-3 flex items-center gap-2">
-              <div className="text-2xl">{mood}</div>
+              <WhaleMood happy={paceGood} />
               <div>
                 <p className="text-base font-semibold text-brand-text">{envelope.name}</p>
                 <p className="text-xs text-brand-text-muted">{dc}</p>

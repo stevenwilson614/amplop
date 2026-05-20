@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useHousehold } from "@/context/HouseholdContext";
 import { CURRENCY_DECIMALS } from "@/lib/currency";
 
@@ -136,6 +136,20 @@ export default function SettingsPage() {
               {pwSaving ? "saving..." : "change password"}
             </button>
           </form>
+        </section>
+
+        {/* AI Coach */}
+        <section>
+          <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">ai coach</p>
+          <Link
+            to="/insights"
+            className="block w-full rounded-lg border border-brand-border bg-brand-surface py-3 text-center font-mono text-sm text-brand-accent"
+          >
+            open budget coach →
+          </Link>
+          <p className="mt-2 font-mono text-[10px] leading-relaxed text-brand-text-muted">
+            Requires ANTHROPIC_API_KEY in Supabase secrets. Deploy: budget-insights edge function.
+          </p>
         </section>
 
         {/* FX Rates */}

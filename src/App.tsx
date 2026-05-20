@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate, Outlet, useNavigate } from "react-
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { HouseholdProvider, useHousehold } from "@/context/HouseholdContext";
+import { TransactionModalProvider } from "@/context/TransactionModalContext";
 import LoginPage from "@/pages/LoginPage";
 import OnboardingPage from "@/pages/OnboardingPage";
 import EnvelopesPage from "@/pages/EnvelopesPage";
@@ -25,7 +26,7 @@ function AppShell() {
   return (
     <div className="min-h-screen bg-brand-bg px-0 sm:px-4 sm:py-6">
       <div className="mx-auto flex h-screen w-full max-w-[430px] flex-col overflow-hidden bg-brand-surface sm:h-[896px] sm:rounded-[34px] sm:shadow-2xl">
-        <main className="flex-1 overflow-auto pb-24">
+        <main className="flex-1 overflow-auto pb-28">
           <Outlet />
         </main>
         <BottomNav />
@@ -38,7 +39,9 @@ function AuthGuard({ session }: { session: Session | null }) {
   if (!session) return <Navigate to="/login" replace />;
   return (
     <HouseholdProvider>
-      <AppShell />
+      <TransactionModalProvider>
+        <AppShell />
+      </TransactionModalProvider>
     </HouseholdProvider>
   );
 }

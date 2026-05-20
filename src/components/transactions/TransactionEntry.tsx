@@ -5,6 +5,7 @@ import type { Envelope, DbUser, Household, FxRates, Category, TxType } from "@/l
 import { parseToMinorUnits, getRate, convert, format, CURRENCY_DECIMALS } from "@/lib/currency";
 import EnvelopePicker from "@/components/transactions/EnvelopePicker";
 import PayeePicker from "@/components/transactions/PayeePicker";
+import type { TransactionPrefill } from "@/context/TransactionModalContext";
 
 interface Props {
   open: boolean;
@@ -16,12 +17,13 @@ interface Props {
   household: Household;
   fxRates: FxRates;
   defaultEnvelope?: Envelope;
+  prefill?: TransactionPrefill;
 }
 
 const CURRENCIES = Object.keys(CURRENCY_DECIMALS);
 const today = () => new Date().toLocaleDateString("en-CA");
 type SplitMode = "amount" | "percent";
-type Screen = "main" | "type" | "payee" | "envelope" | "from" | "amount";
+type Screen = "main" | "type" | "payee" | "envelope" | "from";
 interface SplitItem { envelope_id: string; value: string }
 
 const TX_TYPE_LABELS: Record<TxType, string> = {
@@ -31,7 +33,7 @@ const TX_TYPE_LABELS: Record<TxType, string> = {
 };
 
 export default function TransactionEntry({
-  open, onClose, onSaved, envelopes, categories = [], dbUser, household, fxRates, defaultEnvelope,
+  open, onClose, onSaved, envelopes, categories = [], dbUser, household, fxRates, defaultEnvelope, prefill,
 }: Props) {
   const [screen, setScreen] = useState<Screen>("main");
   const [txType, setTxType] = useState<TxType>("expense");
@@ -69,23 +71,28 @@ export default function TransactionEntry({
   }, [envelopes, currency]);
 
   useEffect(() => {
-    if (open) {
-      setScreen("main");
-      setTxType("expense");
-      setAmount("");
-      setMerchant("");
-      setNotes("");
-      setDate(today());
-      setError("");
-      setUseSplits(false);
-      setEnvelopeId(defaultEnvelope?.id ?? envelopes[0]?.id ?? "");
-      setFromEnvelopeId(defaultEnvelope?.id ?? envelopes[0]?.id ?? "");
-      setCurrency(defaultEnvelope?.budget_currency ?? "IDR");
-      setSplitMode("amount");
-      const initialEnvelope = defaultEnvelope?.id ?? envelopes[0]?.id ?? "";
-      setSplits(initialEnvelope ? [{ envelope_id: initialEnvelope, value: "" }] : []);
-    }
-  }, [open, defaultEnvelope, envelopes]);
+    if (!open) return;
+    setScreen("main");
+    setError("");
+    setNotes("");
+    setDate(today());
+    setUseSplits(false);
+    setCurrency("IDR");
+    setSplitMode("amount");
+
+    const matchedByName = prefill?.envelopeName
+      ? envelopes.find((e) => e.name.toLowerCase().includes(prefill.envelopeName!.toLowerCase()))
+      : undefined;
+    const env = defaultEnvelope ?? matchedByName ?? envelopes[0];
+    const initialId = env?.id ?? "";
+
+    setTxType(prefill?.txType ?? "expense");
+    setAmount(prefill?.amount ?? "");
+    setMerchant(prefill?.merchant ?? "");
+    setEnvelopeId(initialId);
+    setFromEnvelopeId(initialId);
+    setSplits(initialId ? [{ envelope_id: initialId, value: "" }] : []);
+  }, [open, defaultEnvelope, envelopes, prefill]);
 
   useEffect(() => {
     if (txType !== "transfer") return;
@@ -188,7 +195,7 @@ export default function TransactionEntry({
     });
   }
 
-  if (screen === "payee" && txType !== "transfer") {
+  if (screen === "payee" && txType === "expense") {
     return (
       <PayeePicker
         householdId={household.id}
@@ -252,48 +259,12 @@ export default function TransactionEntry({
     );
   }
 
-  if (screen === "amount") {
-    return (
-      <div className="fixed inset-0 z-[60] flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
-        <div className="flex items-center justify-between bg-brand-accent px-4 pb-4 pt-7 text-white">
-          <button type="button" onClick={() => setScreen("main")} className="rounded-full bg-[#8AF4A6] px-4 py-2 text-sm font-semibold text-[#0F3C1B]">Back</button>
-          <h1 className="text-xl font-semibold">Amount</h1>
-          <button type="button" onClick={() => setScreen("main")} className="rounded-full bg-[#8AF4A6] px-4 py-2 text-sm font-semibold text-[#0F3C1B]">Done</button>
-        </div>
-        <div className="flex flex-1 flex-col px-4 pt-6">
-          <div className="flex items-center justify-end gap-2">
-            <input
-              type="text"
-              inputMode="decimal"
-              pattern="[0-9]*"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-              placeholder="0"
-              autoFocus
-              className="w-full bg-transparent text-right text-4xl text-brand-text focus:outline-none"
-            />
-            <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="bg-transparent text-xl text-brand-text focus:outline-none"
-            >
-              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          {convertedPreview && (
-            <p className="mt-2 text-right text-sm text-brand-text-muted">≈ {convertedPreview}</p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   const envelopeLabel = useSplits
     ? `${splits.length} envelopes`
     : (selectedEnv ? (selectedEnv.trip_id ? `✈ ${selectedEnv.name}` : selectedEnv.name) : "Select");
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
+    <div className="fixed inset-0 z-[80] flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
       <div className="flex items-center justify-between bg-brand-accent px-4 pb-4 pt-7 text-white">
         <button onClick={onClose} className="rounded-full bg-[#8AF4A6] px-3 py-2 font-mono text-sm font-semibold text-[#0F3C1B]">✕</button>
         <h1 className="font-mono text-2xl font-semibold">Add Transaction</h1>
@@ -312,7 +283,7 @@ export default function TransactionEntry({
             <span className="font-mono text-2xl font-medium">{TX_TYPE_LABELS[txType]}</span>
           </TappableRow>
 
-          {txType !== "transfer" && (
+          {txType === "expense" && (
             <TappableRow label="Payee" onClick={() => setScreen("payee")}>
               <span className={`font-mono text-2xl ${merchant ? "text-brand-text" : "text-[#B9C0CB]"}`}>
                 {merchant || "Who received payment?"}
@@ -320,12 +291,19 @@ export default function TransactionEntry({
             </TappableRow>
           )}
 
-          <TappableRow label="Amount" onClick={() => setScreen("amount")}>
+          <Row label="Amount">
             <div className="flex items-center justify-end gap-2">
-              <span className="font-mono text-2xl text-brand-text">{amount || "Amt"}</span>
-              <span className="font-mono text-xl text-brand-text-muted">{currency}</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                placeholder="0"
+                className="w-full bg-transparent text-right font-mono text-2xl text-brand-text placeholder:text-[#B9C0CB] focus:outline-none"
+              />
+              <span className="font-mono text-xl text-brand-text-muted">IDR</span>
             </div>
-          </TappableRow>
+          </Row>
 
           {txType === "transfer" ? (
             <TappableRow label="From" onClick={() => setScreen("from")}>
@@ -419,7 +397,7 @@ export default function TransactionEntry({
 
 function PickerShell({ title, onBack, children }: { title: string; onBack: () => void; children: ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
+    <div className="fixed inset-0 z-[85] flex flex-col bg-brand-bg sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
       <div className="flex items-center justify-between bg-brand-accent px-4 pb-4 pt-7 text-white">
         <button type="button" onClick={onBack} className="rounded-full bg-[#8AF4A6] px-4 py-2 text-sm font-semibold text-[#0F3C1B]">Back</button>
         <h1 className="text-xl font-semibold">{title}</h1>
