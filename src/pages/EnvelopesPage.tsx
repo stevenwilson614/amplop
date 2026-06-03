@@ -7,6 +7,7 @@ import EnvelopeSheet from "@/components/envelopes/EnvelopeSheet";
 import { convert, format } from "@/lib/currency";
 import { useTransactionModal } from "@/context/TransactionModalContext";
 import TripPlannerSheet from "@/components/trips/TripPlannerSheet";
+import TripLineItemSheet from "@/components/trips/TripLineItemSheet";
 import { syncTripDailyDraws, deleteTripDrawTransactions } from "@/lib/tripDraws";
 import EnvelopeDetailSheet from "@/components/envelopes/EnvelopeDetailSheet";
 import EditBudgetMode from "@/components/envelopes/EditBudgetMode";
@@ -21,6 +22,7 @@ export default function EnvelopesPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editEnvelope, setEditEnvelope] = useState<Envelope | undefined>();
   const [tripSheetOpen, setTripSheetOpen] = useState(false);
+  const [tripLineItemSheetOpen, setTripLineItemSheetOpen] = useState(false);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [tripEnvelopes, setTripEnvelopes] = useState<Envelope[]>([]);
   const [monthSpentMap, setMonthSpentMap] = useState<Record<string, number>>({});
@@ -291,7 +293,7 @@ export default function EnvelopesPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setTripSheetOpen(true)}
+                  onClick={() => setTripLineItemSheetOpen(true)}
                   className="rounded-lg border border-brand-border px-2 py-1 text-xs font-semibold text-brand-text-muted"
                 >
                   add categories
@@ -349,6 +351,18 @@ export default function EnvelopesPage() {
         fxRates={fxRates}
       />
 
+      <TripLineItemSheet
+        open={tripLineItemSheetOpen}
+        onClose={() => setTripLineItemSheetOpen(false)}
+        onSaved={() => {
+          load();
+          refetch();
+        }}
+        householdId={household?.id ?? ""}
+        trip={activeTrip}
+        nextSortOrder={tripEnvelopes.length}
+      />
+
       <EnvelopeDetailSheet
         open={detailOpen}
         envelope={detailEnvelope}
@@ -356,6 +370,7 @@ export default function EnvelopesPage() {
         availableIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.availableIdr ?? detailEnvelope.budget_amount) : 0}
         monthSpentIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.monthSpentIdr ?? 0) : 0}
         paceDeltaIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.paceDeltaIdr ?? 0) : 0}
+        paceMarkerPct={detailEnvelope ? (perfMap[detailEnvelope.id]?.paceMarkerPct ?? 0) : 0}
         displayCurrency={dc}
         fxRates={fxRates}
         isTripEnvelope={Boolean(detailEnvelope?.trip_id)}

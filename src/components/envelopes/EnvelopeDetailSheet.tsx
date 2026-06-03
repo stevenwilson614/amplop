@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import type { Envelope, Transaction } from "@/lib/types";
 import type { FxRates } from "@/lib/types";
 import { convert, format } from "@/lib/currency";
+import { budgetSpentPct } from "@/lib/budgetProgress";
 import WhaleMood from "@/components/ui/WhaleMood";
 import SwipeToDeleteRow from "@/components/ui/SwipeToDeleteRow";
 
@@ -13,6 +14,7 @@ interface Props {
   availableIdr: number;
   monthSpentIdr: number;
   paceDeltaIdr: number;
+  paceMarkerPct?: number;
   displayCurrency: string;
   fxRates: FxRates;
   isTripEnvelope?: boolean;
@@ -28,6 +30,7 @@ export default function EnvelopeDetailSheet({
   spentIdr,
   availableIdr,
   paceDeltaIdr,
+  paceMarkerPct = 0,
   displayCurrency,
   fxRates,
   isTripEnvelope = false,
@@ -116,9 +119,7 @@ export default function EnvelopeDetailSheet({
 
   if (!open || !envelope) return null;
 
-  const remainingPct = availableIdr > 0
-    ? Math.max(0, Math.min(100, Math.round((Math.max(0, balanceIdr) / availableIdr) * 100)))
-    : 0;
+  const spentPct = budgetSpentPct(spentIdr, availableIdr);
 
   return (
     <div className="fixed inset-0 bottom-0 z-40 flex flex-col bg-brand-surface pb-24 sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
@@ -153,14 +154,14 @@ export default function EnvelopeDetailSheet({
                 <div
                   className="absolute z-10 w-[2px] bg-[#1E2733]"
                   style={{
-                    left: `${remainingPct}%`,
+                    left: `${Math.max(0, Math.min(100, paceMarkerPct))}%`,
                     top: "-2px",
                     bottom: "-2px",
                   }}
                 />
                 <div
-                  className={`h-full ${balanceIdr >= 0 ? "bg-brand-accent" : "bg-red-500"}`}
-                  style={{ width: `${remainingPct}%` }}
+                  className="h-full bg-brand-accent"
+                  style={{ width: `${spentPct}%` }}
                 />
               </div>
             </div>

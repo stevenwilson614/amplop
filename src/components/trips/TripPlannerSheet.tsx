@@ -74,21 +74,6 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
         .filter(([, enabled]) => enabled)
         .map(([id]) => id);
 
-      if (activeDrawIds.length > 0) {
-        await saveTripDraws({
-          tripId: trip.id,
-          draws: activeDrawIds.map((envelopeId) => {
-            const env = envelopesById.get(envelopeId) as Envelope;
-            return {
-              envelopeId,
-              dailyAmount: envelopeDailyAmount(env),
-              label: "Vacation",
-            };
-          }),
-        });
-        await syncTripDailyDraws({ householdId, userId, fxRates });
-      }
-
       const cleanedLineItems = lineItems
         .map((item) => ({ ...item, name: item.name.trim() }))
         .filter((item) => item.name.length > 0);
@@ -103,7 +88,6 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
           name: item.name,
           budget_amount: Math.max(0, amount),
           budget_currency: tripCurrency,
-          drawn_idr_snapshot: 0,
           sort_order: idx,
         };
       });
@@ -111,6 +95,28 @@ export default function TripPlannerSheet({ open, onClose, onSaved, householdId, 
       if (customRows.length > 0) {
         const { error: envErr } = await supabase.from("envelopes").insert(customRows);
         if (envErr) throw envErr;
+      }
+
+      if (activeDrawIds.length > 0) {
+        try {
+          await saveTripDraws({
+            tripId: trip.id,
+            draws: activeDrawIds.map((envelopeId) => {
+              const env = envelopesById.get(envelopeId) as Envelope;
+              return {
+                envelopeId,
+                dailyAmount: envelopeDailyAmount(env),
+                label: "Vacation",
+              };
+            }),
+          });
+          if (userId) {
+            await syncTripDailyDraws({ householdId, userId, fxRates });
+          }
+        } catch (drawErr) {
+          const drawMsg = drawErr instanceof Error ? drawErr.message : "Daily draws failed";
+          console.warn("Trip daily draws failed:", drawMsg);
+        }
       }
 
       onSaved();

@@ -1,6 +1,7 @@
 import type { Envelope } from "@/lib/types";
 import type { FxRates } from "@/lib/types";
 import { format, convert } from "@/lib/currency";
+import { budgetSpentPct } from "@/lib/budgetProgress";
 
 interface Props {
   envelope: Envelope;
@@ -37,9 +38,7 @@ export default function EnvelopeCard({
     : convert(monthlyBudgetIdr, "IDR", dc, fxRates);
   const balanceDisplay = dc === "IDR" ? balanceIdr : convert(balanceIdr, "IDR", dc, fxRates);
 
-  const remainingPct = totalAvailableIdr > 0
-    ? Math.max(0, Math.min(100, Math.round((balanceIdr / totalAvailableIdr) * 100)))
-    : 0;
+  const spentPct = budgetSpentPct(spentIdr, totalAvailableIdr);
   const over = balanceIdr < 0;
 
   return (
@@ -67,8 +66,8 @@ export default function EnvelopeCard({
             }}
           />
           <div
-            className={`h-full transition-all ${over ? "bg-red-500" : "bg-brand-accent"} relative z-0`}
-            style={{ width: `${remainingPct}%` }}
+            className="h-full transition-all bg-brand-accent relative z-0"
+            style={{ width: `${spentPct}%` }}
           />
         </div>
         <span className="flex-1 text-right font-mono text-[12px] leading-none text-brand-text-muted">
