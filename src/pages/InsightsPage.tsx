@@ -265,7 +265,7 @@ export default function InsightsPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="fixed inset-x-0 bottom-[5.75rem] z-[60] mx-auto max-w-[430px] px-3 pb-1"
+        className="fixed inset-x-0 bottom-bottom-nav z-[60] mx-auto max-w-[430px] px-3 pb-1"
       >
         <div className="flex items-center gap-2 rounded-full border border-brand-border bg-[rgba(235,238,242,0.98)] p-1.5 shadow-[0_4px_16px_rgba(16,18,23,0.12)] backdrop-blur-md">
           <input

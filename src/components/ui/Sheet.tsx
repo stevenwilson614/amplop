@@ -17,14 +17,14 @@ export default function Sheet({ open, onClose, title, children }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+    <div className="fixed inset-x-0 top-0 bottom-bottom-nav z-50 flex flex-col justify-end">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div className="relative bg-brand-surface rounded-t-2xl max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-brand-border">
           <h2 className="font-mono font-bold text-brand-text">{title}</h2>
           <button onClick={onClose} className="text-brand-text-muted font-mono text-sm">✕</button>
         </div>
-        <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 overflow-auto p-4 pb-6">
           {children}
         </div>
       </div>

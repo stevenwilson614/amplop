@@ -83,7 +83,7 @@ export default function EditBudgetMode({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-brand-surface sm:mx-auto sm:h-[896px] sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
+    <div className="fixed inset-x-0 top-0 bottom-bottom-nav z-50 flex flex-col bg-brand-surface sm:mx-auto sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
       <div className="bg-brand-accent px-4 pb-3 pt-5 text-white">
         <div className="flex items-center justify-between">
           <div className="w-16" />
@@ -99,7 +99,7 @@ export default function EditBudgetMode({
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto pb-24">
+      <div className="flex-1 overflow-auto pb-6">
         {grouped.map(({ category, items }) => (
           <div key={category?.id ?? "__none__"}>
             {category && (

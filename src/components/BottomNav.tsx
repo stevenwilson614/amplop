@@ -13,8 +13,11 @@ export default function BottomNav() {
   const { openTransaction, contextEnvelope } = useTransactionModal();
 
   return (
-    <nav className="pointer-events-none absolute inset-x-0 bottom-6 z-[70] flex justify-center px-3 pb-[env(safe-area-inset-bottom)]">
-      <div className="pointer-events-auto flex w-full max-w-[320px] items-end gap-0 rounded-full border border-black/5 bg-[rgba(235,238,242,0.94)] py-1.5 pl-0.5 pr-1 shadow-[0_8px_24px_rgba(16,18,23,0.14)] backdrop-blur-md">
+    <nav
+      aria-label="Main navigation"
+      className="relative z-[70] shrink-0 border-t border-black/5 bg-[rgba(235,238,242,0.98)] px-3 pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md"
+    >
+      <div className="mx-auto flex w-full max-w-[320px] items-end gap-0 rounded-full border border-black/5 bg-[rgba(235,238,242,0.94)] py-1.5 pl-0.5 pr-1 shadow-[0_8px_24px_rgba(16,18,23,0.14)]">
         {tabs.map((t) => {
           const active = pathname === t.path;
           return (

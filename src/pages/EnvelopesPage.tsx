@@ -237,7 +237,7 @@ export default function EnvelopesPage() {
         </div>
       </div>
 
-      <div className="flex-1 space-y-6 overflow-auto px-4 pb-28 pt-3">
+      <div className="flex-1 space-y-6 overflow-auto px-4 pt-3">
         {grouped.length === 0 && (
           <div className="text-center py-12">
             <p className="font-mono text-sm text-brand-text-muted">no envelopes yet</p>

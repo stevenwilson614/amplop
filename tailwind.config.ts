@@ -28,6 +28,15 @@ const config: Config = {
           "sans-serif",
         ],
       },
+      spacing: {
+        "bottom-nav": "var(--app-bottom-nav-height)",
+      },
+      inset: {
+        "bottom-nav": "var(--app-bottom-nav-height)",
+      },
+      height: {
+        "bottom-nav": "var(--app-bottom-nav-height)",
+      },
     },
   },
   plugins: [],

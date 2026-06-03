@@ -50,7 +50,7 @@ export default function WhaleBuddy() {
         type="button"
         onClick={openToday}
         aria-label="Today's whale fact"
-        className={`absolute bottom-[7.5rem] right-3 z-[65] flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform active:scale-95 ${
+        className={`absolute bottom-[calc(var(--app-bottom-nav-height)+0.75rem)] right-3 z-[65] flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform active:scale-95 ${
           unseen
             ? "bg-gradient-to-br from-[#2a6dad] to-[#1a3d6b] ring-2 ring-[#5eb3e8] ring-offset-2 ring-offset-[rgba(235,238,242,0.9)] animate-bounce"
             : "bg-gradient-to-br from-[#3579b8] to-[#1e4a7a] ring-1 ring-white/40"

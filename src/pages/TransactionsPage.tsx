@@ -41,7 +41,7 @@ export default function TransactionsPage() {
         <h1 className="font-mono font-bold text-brand-text">transactions</h1>
       </div>
 
-      <div className="flex-1 overflow-auto p-4 pb-24">
+      <div className="flex-1 overflow-auto p-4">
         <TransactionList
           transactions={transactions}
           envelopes={envelopes}

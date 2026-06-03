@@ -236,7 +236,7 @@ export default function SettingsPage() {
         <h1 className="font-mono font-bold text-brand-text">settings</h1>
       </div>
 
-      <div className="flex-1 overflow-auto p-4 pb-24 space-y-6">
+      <div className="flex-1 overflow-auto p-4 space-y-6">
         {/* Profile */}
         <section>
           <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">profile</p>

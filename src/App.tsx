@@ -54,7 +54,7 @@ function AppShell() {
   return (
     <div className="min-h-screen bg-brand-bg px-0 sm:px-4 sm:py-6">
       <div className="relative mx-auto flex h-screen w-full max-w-[430px] flex-col overflow-hidden bg-brand-surface sm:h-[896px] sm:rounded-[34px] sm:shadow-2xl">
-        <main className="flex-1 overflow-auto pb-28">
+        <main className="flex-1 min-h-0 overflow-auto">
           <Outlet />
         </main>
         <WhaleBuddy />
