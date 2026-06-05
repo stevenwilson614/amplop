@@ -14,8 +14,9 @@ interface Props {
   spentIdr: number;
   availableIdr: number;
   monthSpentIdr: number;
-  paceDeltaIdr: number;
   budgetMonths?: number;
+  monthSpentByMonth?: Record<string, number>;
+  paceDeltaIdr: number;
   paceMarkerPct?: number;
   displayCurrency: string;
   fxRates: FxRates;
@@ -32,8 +33,9 @@ export default function EnvelopeDetailSheet({
   spentIdr,
   availableIdr,
   monthSpentIdr,
-  paceDeltaIdr,
   budgetMonths = 1,
+  monthSpentByMonth = {},
+  paceDeltaIdr,
   paceMarkerPct = 0,
   displayCurrency,
   fxRates,
@@ -75,16 +77,18 @@ export default function EnvelopeDetailSheet({
   const monthlyIdr = envelope ? monthlyBudgetIdr(envelope, fxRates) : 0;
   const balanceIdr = envelope
     ? resolveEnvelopeBalanceIdr({
+        envelope,
         isTrip: isTripEnvelope,
         monthlyBudgetIdr: monthlyIdr,
         spentIdr,
         monthSpentIdr,
         budgetMonths,
         availableIdr,
+        monthSpentByMonth,
       })
     : 0;
   const balanceDisplay = dc === "IDR" ? balanceIdr : convert(balanceIdr, "IDR", dc, fxRates);
-  const availableDisplay = dc === "IDR" ? availableIdr : convert(availableIdr, "IDR", dc, fxRates);
+  const monthlyDisplay = dc === "IDR" ? monthlyIdr : convert(monthlyIdr, "IDR", dc, fxRates);
   const isOverBudget = balanceIdr < 0;
   const paceGood = paceDeltaIdr >= 0;
   const paceDeltaDisplay = dc === "IDR" ? Math.abs(paceDeltaIdr) : convert(Math.abs(paceDeltaIdr), "IDR", dc, fxRates);
@@ -133,7 +137,9 @@ export default function EnvelopeDetailSheet({
 
   if (!open || !envelope) return null;
 
-  const barPct = budgetBarPct(spentIdr, availableIdr, isTripEnvelope ? "remaining" : "spent");
+  const barPct = isTripEnvelope
+    ? budgetBarPct(spentIdr, availableIdr, "remaining")
+    : budgetBarPct(monthSpentIdr, monthlyIdr, "spent");
 
   return (
     <div className="fixed inset-x-0 top-0 bottom-bottom-nav z-40 flex flex-col bg-brand-surface sm:mx-auto sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
@@ -183,7 +189,7 @@ export default function EnvelopeDetailSheet({
               <p className={`text-lg font-semibold leading-tight ${balanceIdr < 0 ? "text-red-500" : "text-brand-text"}`}>
                 {format(balanceDisplay, dc)}
               </p>
-              <p className="text-xs text-brand-text-muted">{format(availableDisplay, dc)}</p>
+              <p className="text-xs text-brand-text-muted">{format(isTripEnvelope ? (dc === "IDR" ? availableIdr : convert(availableIdr, "IDR", dc, fxRates)) : monthlyDisplay, dc)}</p>
             </div>
           </div>
           <p className={`mt-2 text-sm ${whaleHappy ? "text-brand-accent" : "text-red-500"}`}>

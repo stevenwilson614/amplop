@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import type { Envelope } from "@/lib/types";
 import { parseToMinorUnits } from "@/lib/currency";
 import { splitCsvLine, normalizeDate } from "@/lib/importHistory";
-import { budgetMonthsElapsed, envelopeBudgetStartDate } from "@/lib/envelopeBudget";
+import { carryoverFromRemaining, currentMonthKey, monthlyBudgetIdr } from "@/lib/envelopeBudget";
 
 export const GOODBUDGET_IMPORT_NOTE = "Goodbudget import";
 
@@ -540,22 +540,18 @@ export function parseRemainingBalances(text: string): Record<string, number> {
   return result;
 }
 
-function envelopeMonthsElapsed(env: Envelope, firstTxDate?: string | null): number {
-  const start = envelopeBudgetStartDate(env, firstTxDate);
-  return budgetMonthsElapsed(start);
-}
-
 /**
- * Set monthly budget so displayed balance matches Goodbudget "amount left"
- * after imported transaction history (balance = budget×months − spent).
+ * Store Goodbudget remaining as carryover snapshot; keep budget_amount as the real monthly budget.
+ * balance = carryover + monthly − this month's spending.
  */
 export async function syncEnvelopeRemainings(args: {
   remainings: Record<string, number>;
   envelopes: Envelope[];
-  spentMap: Record<string, number>;
-  firstActivityMap?: Record<string, string>;
+  monthSpentMap: Record<string, number>;
+  fxRates: Record<string, number>;
 }): Promise<{ updated: number; unmatched: string[] }> {
-  const { remainings, envelopes, spentMap, firstActivityMap = {} } = args;
+  const { remainings, envelopes, monthSpentMap, fxRates } = args;
+  const carryoverMonth = currentMonthKey();
   let updated = 0;
   const unmatched: string[] = [];
 
@@ -567,16 +563,15 @@ export async function syncEnvelopeRemainings(args: {
       continue;
     }
 
-    const spentIdr = spentMap[env.id] ?? 0;
-    const months = envelopeMonthsElapsed(env, firstActivityMap[env.id]);
-    const totalAvailable = remainingIdr + spentIdr;
-    const monthlyBudget = Math.max(0, Math.ceil(totalAvailable / months));
+    const monthly = monthlyBudgetIdr(env, fxRates);
+    const monthSpentIdr = monthSpentMap[env.id] ?? 0;
+    const carryoverIdr = carryoverFromRemaining({ remainingIdr, monthlyBudgetIdr: monthly, monthSpentIdr });
 
     const { error } = await supabase
       .from("envelopes")
       .update({
-        budget_amount: monthlyBudget,
-        budget_currency: "IDR",
+        carryover_idr: carryoverIdr,
+        carryover_month: carryoverMonth,
       })
       .eq("id", env.id);
 

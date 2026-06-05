@@ -13,8 +13,8 @@ import {
   syncEnvelopeRemainings,
   REMAINING_BALANCES_TEMPLATE,
 } from "@/lib/goodbudgetImport";
-import { buildFirstActivityMap } from "@/lib/envelopeBudget";
-import type { DbUser, Envelope, EnvelopeSpent } from "@/lib/types";
+import { buildMonthSpentByEnvelope, fetchAllHouseholdTransactions } from "@/lib/envelopeBudget";
+import type { DbUser, Envelope } from "@/lib/types";
 
 const CURRENCIES = Object.keys(CURRENCY_DECIMALS);
 
@@ -141,23 +141,23 @@ export default function SettingsPage() {
       }
 
       const envelopes = await loadEnvelopes();
-      const { data: spentRows } = await supabase.rpc("get_envelope_spent");
-      const spentMap: Record<string, number> = {};
-      for (const row of (spentRows as EnvelopeSpent[] ?? [])) {
-        spentMap[row.envelope_id] = Number(row.spent_idr);
-      }
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      const monthStartIso = monthStart.toLocaleDateString("en-CA");
 
-      const { data: txs } = await supabase
-        .from("transactions")
-        .select("date, allocations:transaction_allocations(envelope_id)")
-        .eq("household_id", household.id);
-      const firstActivityMap = buildFirstActivityMap(txs ?? []);
+      const txs = await fetchAllHouseholdTransactions(household.id);
+      const monthSpentByEnvelope = buildMonthSpentByEnvelope(txs);
+      const monthSpentMap: Record<string, number> = {};
+      const currentMonth = monthStartIso.slice(0, 7);
+      for (const [envId, months] of Object.entries(monthSpentByEnvelope)) {
+        monthSpentMap[envId] = months[currentMonth] ?? 0;
+      }
 
       const result = await syncEnvelopeRemainings({
         remainings,
         envelopes,
-        spentMap,
-        firstActivityMap,
+        monthSpentMap,
+        fxRates,
       });
       await refetch();
       window.dispatchEvent(new CustomEvent("amplop:data-changed"));

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Sync envelope remaining balances from pasted Goodbudget amounts.
+ * Sync Goodbudget remaining balances into carryover snapshots (keeps monthly budget unchanged).
  * Usage: node scripts/sync-remainings.mjs
  */
 
@@ -22,6 +22,8 @@ Giving: 6799906
 Rocky: 1322711
 House Mainetence: 2080874
 Private classes: 1741052`;
+
+const HOUSEHOLD_ID = "5e115301-cbf6-4410-ad54-2dd15390143d";
 
 function loadEnv() {
   const envPath = path.join(root, ".env.local");
@@ -75,82 +77,61 @@ function findEnvelope(envelopes, key) {
   return undefined;
 }
 
-function monthsElapsed(createdAt, firstTxDate) {
-  const created = new Date(createdAt);
-  const start = firstTxDate
-    ? new Date(`${firstTxDate}T00:00:00`)
-    : created;
-  const budgetStart = firstTxDate && start.getTime() < created.getTime() ? start : created;
-  const now = new Date();
-  return Math.max(
-    1,
-    (now.getFullYear() - budgetStart.getFullYear()) * 12 +
-      (now.getMonth() - budgetStart.getMonth()) +
-      1
-  );
-}
-
-function buildFirstActivityMap(txs) {
-  const map = {};
-  for (const tx of txs ?? []) {
-    for (const alloc of tx.allocations ?? []) {
-      const id = alloc.envelope_id;
-      if (!map[id] || tx.date < map[id]) map[id] = tx.date;
-    }
-  }
-  return map;
+function carryoverFromRemaining(remaining, monthly, monthSpent) {
+  return remaining + monthSpent - monthly;
 }
 
 async function main() {
   const env = loadEnv();
   const sb = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
   const remainings = parseRemainings(REMAININGS_TEXT);
+  const carryoverMonth = new Date().toLocaleDateString("en-CA").slice(0, 7);
+  const monthStart = `${carryoverMonth}-01`;
 
-  const { data: households, error: hErr } = await sb.from("households").select("id").limit(1);
-  if (hErr) throw hErr;
-  const householdId = households?.[0]?.id;
-  if (!householdId) throw new Error("No household found");
+  const { data: envelopes, error: eErr } = await sb
+    .from("envelopes")
+    .select("*")
+    .eq("household_id", HOUSEHOLD_ID)
+    .is("trip_id", null);
+  if (eErr) throw eErr;
 
-  const { data: envelopes } = await sb.from("envelopes").select("*").eq("household_id", householdId);
-
-  const { data: txs } = await sb
+  const { data: txs, error: tErr } = await sb
     .from("transactions")
-    .select("id, date, amount, amount_idr_snapshot, allocations:transaction_allocations(envelope_id, amount)")
-    .eq("household_id", householdId);
+    .select("date, amount, amount_idr_snapshot, allocations:transaction_allocations(envelope_id, amount)")
+    .eq("household_id", HOUSEHOLD_ID);
+  if (tErr) throw tErr;
 
-  const firstActivityMap = buildFirstActivityMap(txs);
-
-  const spentMap = {};
+  const monthSpentMap = {};
   for (const t of txs ?? []) {
+    if (t.date < monthStart) continue;
     const total = Number(t.amount) || 0;
     const totalIdr = Number(t.amount_idr_snapshot) || 0;
     if (!total || !t.allocations) continue;
     for (const a of t.allocations) {
       const idr = Math.round((Number(a.amount) / total) * totalIdr);
-      spentMap[a.envelope_id] = (spentMap[a.envelope_id] ?? 0) + idr;
+      monthSpentMap[a.envelope_id] = (monthSpentMap[a.envelope_id] ?? 0) + idr;
     }
   }
 
-  console.log("Envelopes in Amplop:", envelopes?.map((e) => e.name).join(", "));
-  console.log("\nSyncing remainings:\n");
+  console.log("Syncing Goodbudget remainings → carryover snapshots:\n");
 
   let updated = 0;
   const unmatched = [];
 
   for (const [key, remaining] of Object.entries(remainings)) {
-    const env = findEnvelope(envelopes ?? [], key);
-    if (!env) {
+    const envRow = findEnvelope(envelopes ?? [], key);
+    if (!envRow) {
       unmatched.push(key);
       continue;
     }
-    const spent = spentMap[env.id] ?? 0;
-    const months = monthsElapsed(env.created_at, firstActivityMap[env.id]);
-    const monthlyBudget = Math.max(0, Math.ceil((remaining + spent) / months));
+    const monthly = envRow.budget_amount;
+    const monthSpent = monthSpentMap[envRow.id] ?? 0;
+    const carryover = carryoverFromRemaining(remaining, monthly, monthSpent);
 
     const { error } = await sb.from("envelopes").update({
-      budget_amount: monthlyBudget,
-      budget_currency: "IDR",
-    }).eq("id", env.id);
+      carryover_idr: carryover,
+      carryover_month: carryoverMonth,
+    }).eq("id", envRow.id);
 
     if (error) {
       console.error(`  FAIL ${key}:`, error.message);
@@ -158,8 +139,8 @@ async function main() {
     }
     updated++;
     console.log(
-      `  ${env.name}: remaining ${remaining.toLocaleString()} | spent ${spent.toLocaleString()} | ` +
-      `months ${months} → monthly budget ${monthlyBudget.toLocaleString()} IDR`
+      `  ${envRow.name}: remaining ${remaining.toLocaleString()} | monthly ${monthly.toLocaleString()} | ` +
+      `carryover ${carryover.toLocaleString()}`
     );
   }
 

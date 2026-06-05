@@ -10,6 +10,7 @@ interface Props {
   availableIdr?: number;
   monthSpentIdr?: number;
   budgetMonths?: number;
+  monthSpentByMonth?: Record<string, number>;
   paceMarkerPct?: number;
   displayCurrency: string;
   fxRates: FxRates;
@@ -23,6 +24,7 @@ export default function EnvelopeCard({
   availableIdr,
   monthSpentIdr = 0,
   budgetMonths,
+  monthSpentByMonth = {},
   paceMarkerPct = 0,
   displayCurrency,
   fxRates,
@@ -34,12 +36,14 @@ export default function EnvelopeCard({
   const monthlyIdr = monthlyBudgetIdr(envelope, fxRates);
   const totalAvailableIdr = availableIdr ?? monthlyIdr;
   const balanceIdr = resolveEnvelopeBalanceIdr({
+    envelope,
     isTrip,
     monthlyBudgetIdr: monthlyIdr,
     spentIdr,
     monthSpentIdr,
     budgetMonths: budgetMonths ?? 1,
     availableIdr: totalAvailableIdr,
+    monthSpentByMonth,
   });
 
   const monthlyDisplay = dc === "IDR"
@@ -47,7 +51,9 @@ export default function EnvelopeCard({
     : convert(monthlyIdr, "IDR", dc, fxRates);
   const balanceDisplay = dc === "IDR" ? balanceIdr : convert(balanceIdr, "IDR", dc, fxRates);
 
-  const barPct = budgetBarPct(spentIdr, totalAvailableIdr, isTrip ? "remaining" : "spent");
+  const barPct = isTrip
+    ? budgetBarPct(spentIdr, totalAvailableIdr, "remaining")
+    : budgetBarPct(monthSpentIdr, monthlyIdr, "spent");
   const over = balanceIdr < 0;
 
   return (

@@ -8,8 +8,10 @@ import { convert, format } from "@/lib/currency";
 import {
   budgetMonthsElapsed,
   buildFirstActivityMap,
+  buildMonthSpentByEnvelope,
   computeAvailableIdr,
   envelopeBudgetStartDate,
+  fetchAllHouseholdTransactions,
   monthlyBudgetIdr,
   resolveEnvelopeBalanceIdr,
 } from "@/lib/envelopeBudget";
@@ -34,6 +36,7 @@ export default function EnvelopesPage() {
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [tripEnvelopes, setTripEnvelopes] = useState<Envelope[]>([]);
   const [monthSpentMap, setMonthSpentMap] = useState<Record<string, number>>({});
+  const [monthSpentByEnvelope, setMonthSpentByEnvelope] = useState<Record<string, Record<string, number>>>({});
   const [firstActivityMap, setFirstActivityMap] = useState<Record<string, string>>({});
   const [detailEnvelope, setDetailEnvelope] = useState<Envelope | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -74,17 +77,14 @@ export default function EnvelopesPage() {
     monthStart.setDate(1);
     const monthStartIso = monthStart.toLocaleDateString("en-CA");
 
-    const [{ data: cats }, { data: envs }, { data: spent }, tripEnvsResp, historyTxResp] = await Promise.all([
+    const [{ data: cats }, { data: envs }, { data: spent }, tripEnvsResp, historyTxs] = await Promise.all([
       supabase.from("categories").select("*").eq("household_id", household.id).order("sort_order"),
       supabase.from("envelopes").select("*").eq("household_id", household.id).is("trip_id", null).order("sort_order"),
       supabase.rpc("get_envelope_spent"),
       currentTrip
         ? supabase.from("envelopes").select("*").eq("household_id", household.id).eq("trip_id", currentTrip.id).is("parent_envelope_id", null).order("sort_order")
         : Promise.resolve({ data: [] as Envelope[] }),
-      supabase
-        .from("transactions")
-        .select("id, amount, amount_idr_snapshot, date, allocations:transaction_allocations(envelope_id, amount)")
-        .eq("household_id", household.id),
+      fetchAllHouseholdTransactions(household.id),
     ]);
     setCategories(cats ?? []);
     setEnvelopes(envs ?? []);
@@ -94,10 +94,11 @@ export default function EnvelopesPage() {
       map[row.envelope_id] = Number(row.spent_idr);
     }
     setSpentMap(map);
-    setFirstActivityMap(buildFirstActivityMap(historyTxResp.data ?? []));
+    setFirstActivityMap(buildFirstActivityMap(historyTxs));
+    setMonthSpentByEnvelope(buildMonthSpentByEnvelope(historyTxs));
 
     const monthMap: Record<string, number> = {};
-    for (const tx of historyTxResp.data ?? []) {
+    for (const tx of historyTxs) {
       if (tx.date < monthStartIso) continue;
       const total = Number(tx.amount) || 0;
       const totalIdr = Number(tx.amount_idr_snapshot) || 0;
@@ -190,7 +191,8 @@ export default function EnvelopesPage() {
     spentMap,
     fxRates,
     activeTrip,
-    firstActivityMap
+    firstActivityMap,
+    monthSpentByEnvelope
   );
 
   return (
@@ -268,12 +270,14 @@ export default function EnvelopesPage() {
             const spent = spentMap[env.id] ?? 0;
             const available = perf?.availableIdr ?? monthly;
             return sum + resolveEnvelopeBalanceIdr({
+              envelope: env,
               isTrip: false,
               monthlyBudgetIdr: monthly,
               spentIdr: spent,
               monthSpentIdr: perf?.monthSpentIdr ?? 0,
               budgetMonths: perf?.budgetMonths ?? 1,
               availableIdr: available,
+              monthSpentByMonth: perf?.monthSpentByMonth ?? {},
             });
           }, 0);
           const categoryAvailableDisplay = dc === "IDR"
@@ -296,6 +300,7 @@ export default function EnvelopesPage() {
                   availableIdr={perfMap[env.id]?.availableIdr}
                   monthSpentIdr={perfMap[env.id]?.monthSpentIdr}
                   budgetMonths={perfMap[env.id]?.budgetMonths}
+                  monthSpentByMonth={perfMap[env.id]?.monthSpentByMonth}
                   paceMarkerPct={perfMap[env.id]?.paceMarkerPct ?? 0}
                   displayCurrency={dc}
                   fxRates={fxRates}
@@ -344,6 +349,7 @@ export default function EnvelopesPage() {
                   availableIdr={perfMap[env.id]?.availableIdr}
                   monthSpentIdr={perfMap[env.id]?.monthSpentIdr}
                   budgetMonths={perfMap[env.id]?.budgetMonths}
+                  monthSpentByMonth={perfMap[env.id]?.monthSpentByMonth}
                   paceMarkerPct={perfMap[env.id]?.paceMarkerPct ?? 0}
                   displayCurrency={env.budget_currency}
                   fxRates={fxRates}
@@ -399,8 +405,9 @@ export default function EnvelopesPage() {
         spentIdr={detailEnvelope ? (spentMap[detailEnvelope.id] ?? 0) : 0}
         availableIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.availableIdr ?? detailEnvelope.budget_amount) : 0}
         monthSpentIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.monthSpentIdr ?? 0) : 0}
-        paceDeltaIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.paceDeltaIdr ?? 0) : 0}
         budgetMonths={detailEnvelope ? (perfMap[detailEnvelope.id]?.budgetMonths ?? 1) : 1}
+        monthSpentByMonth={detailEnvelope ? (perfMap[detailEnvelope.id]?.monthSpentByMonth ?? {}) : {}}
+        paceDeltaIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.paceDeltaIdr ?? 0) : 0}
         paceMarkerPct={detailEnvelope ? (perfMap[detailEnvelope.id]?.paceMarkerPct ?? 0) : 0}
         displayCurrency={dc}
         fxRates={fxRates}
@@ -458,6 +465,7 @@ function groupByCategory(envelopes: Envelope[], categories: Category[]): Group[]
 type PerfMap = Record<string, {
   availableIdr: number;
   monthSpentIdr: number;
+  monthSpentByMonth: Record<string, number>;
   paceDeltaIdr: number;
   paceMarkerPct: number;
   budgetMonths: number;
@@ -469,7 +477,8 @@ function buildEnvelopePerfMap(
   spentMap: Record<string, number>,
   fxRates: Record<string, number>,
   activeTrip: Trip | null,
-  firstActivityMap: Record<string, string>
+  firstActivityMap: Record<string, string>,
+  monthSpentByEnvelope: Record<string, Record<string, number>>
 ): PerfMap {
   const now = new Date();
   const day = now.getDate();
@@ -488,12 +497,12 @@ function buildEnvelopePerfMap(
       : computeAvailableIdr(env, fxRates, firstActivityMap[env.id], now);
 
     const monthSpentIdr = monthSpentMap[env.id] ?? 0;
+    const monthSpentByMonth = monthSpentByEnvelope[env.id] ?? {};
     const tripSpentIdr = spentMap[env.id] ?? 0;
     const paceFactor = isTripEnvelope && activeTrip
       ? getTripPaceFactor(activeTrip, now)
       : monthPaceFactor;
-    const monthBudgetPool = monthly * budgetMonths;
-    const expectedByToday = Math.round(monthBudgetPool * paceFactor);
+    const expectedByToday = Math.round(monthly * paceFactor);
     const actualForPace = isTripEnvelope ? tripSpentIdr : monthSpentIdr;
     const paceDeltaIdr = expectedByToday - actualForPace;
     const paceMarkerPct = Math.max(0, Math.min(100, Math.round((1 - paceFactor) * 100)));
@@ -501,6 +510,7 @@ function buildEnvelopePerfMap(
     perf[env.id] = {
       availableIdr,
       monthSpentIdr,
+      monthSpentByMonth,
       paceDeltaIdr,
       paceMarkerPct,
       budgetMonths,

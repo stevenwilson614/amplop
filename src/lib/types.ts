@@ -30,6 +30,8 @@ export interface Envelope {
   name: string;
   budget_amount: number;
   budget_currency: string;
+  carryover_idr?: number;
+  carryover_month?: string | null;
   sort_order: number;
   drawn_idr_snapshot: number;
   created_at: string;
