@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import type { Envelope, Transaction } from "@/lib/types";
 import type { FxRates } from "@/lib/types";
 import { convert, format } from "@/lib/currency";
-import { budgetSpentPct } from "@/lib/budgetProgress";
+import { budgetBarPct } from "@/lib/budgetProgress";
 import WhaleMood from "@/components/ui/WhaleMood";
 import SwipeToDeleteRow from "@/components/ui/SwipeToDeleteRow";
 
@@ -119,7 +119,7 @@ export default function EnvelopeDetailSheet({
 
   if (!open || !envelope) return null;
 
-  const spentPct = budgetSpentPct(spentIdr, availableIdr);
+  const barPct = budgetBarPct(spentIdr, availableIdr, isTripEnvelope ? "remaining" : "spent");
 
   return (
     <div className="fixed inset-x-0 top-0 bottom-bottom-nav z-40 flex flex-col bg-brand-surface sm:mx-auto sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">
@@ -161,7 +161,7 @@ export default function EnvelopeDetailSheet({
                 />
                 <div
                   className="h-full bg-brand-accent"
-                  style={{ width: `${spentPct}%` }}
+                  style={{ width: `${barPct}%` }}
                 />
               </div>
             </div>
