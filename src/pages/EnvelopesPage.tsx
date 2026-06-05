@@ -5,6 +5,14 @@ import type { Envelope, Category, EnvelopeSpent, Trip } from "@/lib/types";
 import EnvelopeCard from "@/components/envelopes/EnvelopeCard";
 import EnvelopeSheet from "@/components/envelopes/EnvelopeSheet";
 import { convert, format } from "@/lib/currency";
+import {
+  budgetMonthsElapsed,
+  buildFirstActivityMap,
+  computeAvailableIdr,
+  envelopeBudgetStartDate,
+  monthlyBudgetIdr,
+  resolveEnvelopeBalanceIdr,
+} from "@/lib/envelopeBudget";
 import { useTransactionModal } from "@/context/TransactionModalContext";
 import TripPlannerSheet from "@/components/trips/TripPlannerSheet";
 import TripLineItemSheet from "@/components/trips/TripLineItemSheet";
@@ -26,6 +34,7 @@ export default function EnvelopesPage() {
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [tripEnvelopes, setTripEnvelopes] = useState<Envelope[]>([]);
   const [monthSpentMap, setMonthSpentMap] = useState<Record<string, number>>({});
+  const [firstActivityMap, setFirstActivityMap] = useState<Record<string, string>>({});
   const [detailEnvelope, setDetailEnvelope] = useState<Envelope | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editModeOpen, setEditModeOpen] = useState(false);
@@ -65,7 +74,7 @@ export default function EnvelopesPage() {
     monthStart.setDate(1);
     const monthStartIso = monthStart.toLocaleDateString("en-CA");
 
-    const [{ data: cats }, { data: envs }, { data: spent }, tripEnvsResp, monthTxResp] = await Promise.all([
+    const [{ data: cats }, { data: envs }, { data: spent }, tripEnvsResp, historyTxResp] = await Promise.all([
       supabase.from("categories").select("*").eq("household_id", household.id).order("sort_order"),
       supabase.from("envelopes").select("*").eq("household_id", household.id).is("trip_id", null).order("sort_order"),
       supabase.rpc("get_envelope_spent"),
@@ -75,8 +84,7 @@ export default function EnvelopesPage() {
       supabase
         .from("transactions")
         .select("id, amount, amount_idr_snapshot, date, allocations:transaction_allocations(envelope_id, amount)")
-        .eq("household_id", household.id)
-        .gte("date", monthStartIso),
+        .eq("household_id", household.id),
     ]);
     setCategories(cats ?? []);
     setEnvelopes(envs ?? []);
@@ -86,9 +94,11 @@ export default function EnvelopesPage() {
       map[row.envelope_id] = Number(row.spent_idr);
     }
     setSpentMap(map);
+    setFirstActivityMap(buildFirstActivityMap(historyTxResp.data ?? []));
 
     const monthMap: Record<string, number> = {};
-    for (const tx of monthTxResp.data ?? []) {
+    for (const tx of historyTxResp.data ?? []) {
+      if (tx.date < monthStartIso) continue;
       const total = Number(tx.amount) || 0;
       const totalIdr = Number(tx.amount_idr_snapshot) || 0;
       if (!total || !tx.allocations) continue;
@@ -174,7 +184,14 @@ export default function EnvelopesPage() {
 
   // Group envelopes by category (plus uncategorised)
   const grouped = groupByCategory(envelopes, categories);
-  const perfMap = buildEnvelopePerfMap([...envelopes, ...tripEnvelopes], monthSpentMap, spentMap, fxRates, activeTrip);
+  const perfMap = buildEnvelopePerfMap(
+    [...envelopes, ...tripEnvelopes],
+    monthSpentMap,
+    spentMap,
+    fxRates,
+    activeTrip,
+    firstActivityMap
+  );
 
   return (
     <div className="flex min-h-full flex-col bg-brand-surface">
@@ -246,9 +263,18 @@ export default function EnvelopesPage() {
         )}
         {grouped.map(({ category, items }) => {
           const categoryAvailableIdr = items.reduce((sum, env) => {
-            const available = perfMap[env.id]?.availableIdr ?? env.budget_amount;
+            const perf = perfMap[env.id];
+            const monthly = monthlyBudgetIdr(env, fxRates);
             const spent = spentMap[env.id] ?? 0;
-            return sum + (available - spent);
+            const available = perf?.availableIdr ?? monthly;
+            return sum + resolveEnvelopeBalanceIdr({
+              isTrip: false,
+              monthlyBudgetIdr: monthly,
+              spentIdr: spent,
+              monthSpentIdr: perf?.monthSpentIdr ?? 0,
+              budgetMonths: perf?.budgetMonths ?? 1,
+              availableIdr: available,
+            });
           }, 0);
           const categoryAvailableDisplay = dc === "IDR"
             ? categoryAvailableIdr
@@ -268,6 +294,8 @@ export default function EnvelopesPage() {
                   envelope={env}
                   spentIdr={spentMap[env.id] ?? 0}
                   availableIdr={perfMap[env.id]?.availableIdr}
+                  monthSpentIdr={perfMap[env.id]?.monthSpentIdr}
+                  budgetMonths={perfMap[env.id]?.budgetMonths}
                   paceMarkerPct={perfMap[env.id]?.paceMarkerPct ?? 0}
                   displayCurrency={dc}
                   fxRates={fxRates}
@@ -314,6 +342,8 @@ export default function EnvelopesPage() {
                   envelope={env}
                   spentIdr={spentMap[env.id] ?? 0}
                   availableIdr={perfMap[env.id]?.availableIdr}
+                  monthSpentIdr={perfMap[env.id]?.monthSpentIdr}
+                  budgetMonths={perfMap[env.id]?.budgetMonths}
                   paceMarkerPct={perfMap[env.id]?.paceMarkerPct ?? 0}
                   displayCurrency={env.budget_currency}
                   fxRates={fxRates}
@@ -370,6 +400,7 @@ export default function EnvelopesPage() {
         availableIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.availableIdr ?? detailEnvelope.budget_amount) : 0}
         monthSpentIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.monthSpentIdr ?? 0) : 0}
         paceDeltaIdr={detailEnvelope ? (perfMap[detailEnvelope.id]?.paceDeltaIdr ?? 0) : 0}
+        budgetMonths={detailEnvelope ? (perfMap[detailEnvelope.id]?.budgetMonths ?? 1) : 1}
         paceMarkerPct={detailEnvelope ? (perfMap[detailEnvelope.id]?.paceMarkerPct ?? 0) : 0}
         displayCurrency={dc}
         fxRates={fxRates}
@@ -424,14 +455,21 @@ function groupByCategory(envelopes: Envelope[], categories: Category[]): Group[]
   return Array.from(groups.values());
 }
 
-type PerfMap = Record<string, { availableIdr: number; monthSpentIdr: number; paceDeltaIdr: number; paceMarkerPct: number }>;
+type PerfMap = Record<string, {
+  availableIdr: number;
+  monthSpentIdr: number;
+  paceDeltaIdr: number;
+  paceMarkerPct: number;
+  budgetMonths: number;
+}>;
 
 function buildEnvelopePerfMap(
   envelopes: Envelope[],
   monthSpentMap: Record<string, number>,
   spentMap: Record<string, number>,
   fxRates: Record<string, number>,
-  activeTrip: Trip | null
+  activeTrip: Trip | null,
+  firstActivityMap: Record<string, string>
 ): PerfMap {
   const now = new Date();
   const day = now.getDate();
@@ -440,23 +478,22 @@ function buildEnvelopePerfMap(
   const perf: PerfMap = {};
 
   for (const env of envelopes) {
-    const monthlyBudgetIdr = env.budget_currency === "IDR"
-      ? env.budget_amount
-      : convert(env.budget_amount, env.budget_currency, "IDR", fxRates);
+    const monthly = monthlyBudgetIdr(env, fxRates);
 
     const isTripEnvelope = Boolean(env.trip_id && activeTrip && env.trip_id === activeTrip.id);
-    const availableIdr = isTripEnvelope ? monthlyBudgetIdr : (() => {
-      const created = new Date(env.created_at);
-      const monthsElapsed = Math.max(1, (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth()) + 1);
-      return monthlyBudgetIdr * monthsElapsed;
-    })();
+    const budgetStart = envelopeBudgetStartDate(env, firstActivityMap[env.id]);
+    const budgetMonths = isTripEnvelope ? 1 : budgetMonthsElapsed(budgetStart, now);
+    const availableIdr = isTripEnvelope
+      ? monthly
+      : computeAvailableIdr(env, fxRates, firstActivityMap[env.id], now);
 
     const monthSpentIdr = monthSpentMap[env.id] ?? 0;
     const tripSpentIdr = spentMap[env.id] ?? 0;
     const paceFactor = isTripEnvelope && activeTrip
       ? getTripPaceFactor(activeTrip, now)
       : monthPaceFactor;
-    const expectedByToday = Math.round(availableIdr * paceFactor);
+    const monthBudgetPool = monthly * budgetMonths;
+    const expectedByToday = Math.round(monthBudgetPool * paceFactor);
     const actualForPace = isTripEnvelope ? tripSpentIdr : monthSpentIdr;
     const paceDeltaIdr = expectedByToday - actualForPace;
     const paceMarkerPct = Math.max(0, Math.min(100, Math.round((1 - paceFactor) * 100)));
@@ -466,6 +503,7 @@ function buildEnvelopePerfMap(
       monthSpentIdr,
       paceDeltaIdr,
       paceMarkerPct,
+      budgetMonths,
     };
   }
 

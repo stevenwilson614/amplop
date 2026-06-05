@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import type { Envelope } from "@/lib/types";
 import { parseToMinorUnits } from "@/lib/currency";
 import { splitCsvLine, normalizeDate } from "@/lib/importHistory";
+import { budgetMonthsElapsed, envelopeBudgetStartDate } from "@/lib/envelopeBudget";
 
 export const GOODBUDGET_IMPORT_NOTE = "Goodbudget import";
 
@@ -539,15 +540,9 @@ export function parseRemainingBalances(text: string): Record<string, number> {
   return result;
 }
 
-function envelopeMonthsElapsed(env: Envelope): number {
-  const created = new Date(env.created_at);
-  const now = new Date();
-  return Math.max(
-    1,
-    (now.getFullYear() - created.getFullYear()) * 12 +
-      (now.getMonth() - created.getMonth()) +
-      1
-  );
+function envelopeMonthsElapsed(env: Envelope, firstTxDate?: string | null): number {
+  const start = envelopeBudgetStartDate(env, firstTxDate);
+  return budgetMonthsElapsed(start);
 }
 
 /**
@@ -558,8 +553,9 @@ export async function syncEnvelopeRemainings(args: {
   remainings: Record<string, number>;
   envelopes: Envelope[];
   spentMap: Record<string, number>;
+  firstActivityMap?: Record<string, string>;
 }): Promise<{ updated: number; unmatched: string[] }> {
-  const { remainings, envelopes, spentMap } = args;
+  const { remainings, envelopes, spentMap, firstActivityMap = {} } = args;
   let updated = 0;
   const unmatched: string[] = [];
 
@@ -572,7 +568,7 @@ export async function syncEnvelopeRemainings(args: {
     }
 
     const spentIdr = spentMap[env.id] ?? 0;
-    const months = envelopeMonthsElapsed(env);
+    const months = envelopeMonthsElapsed(env, firstActivityMap[env.id]);
     const totalAvailable = remainingIdr + spentIdr;
     const monthlyBudget = Math.max(0, Math.ceil(totalAvailable / months));
 

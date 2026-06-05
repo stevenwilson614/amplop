@@ -4,6 +4,7 @@ import type { Envelope, Transaction } from "@/lib/types";
 import type { FxRates } from "@/lib/types";
 import { convert, format } from "@/lib/currency";
 import { budgetBarPct } from "@/lib/budgetProgress";
+import { monthlyBudgetIdr, resolveEnvelopeBalanceIdr } from "@/lib/envelopeBudget";
 import WhaleMood from "@/components/ui/WhaleMood";
 import SwipeToDeleteRow from "@/components/ui/SwipeToDeleteRow";
 
@@ -14,6 +15,7 @@ interface Props {
   availableIdr: number;
   monthSpentIdr: number;
   paceDeltaIdr: number;
+  budgetMonths?: number;
   paceMarkerPct?: number;
   displayCurrency: string;
   fxRates: FxRates;
@@ -29,7 +31,9 @@ export default function EnvelopeDetailSheet({
   envelope,
   spentIdr,
   availableIdr,
+  monthSpentIdr,
   paceDeltaIdr,
+  budgetMonths = 1,
   paceMarkerPct = 0,
   displayCurrency,
   fxRates,
@@ -68,7 +72,17 @@ export default function EnvelopeDetailSheet({
   }, [open, envelope]);
 
   const dc = displayCurrency;
-  const balanceIdr = availableIdr - spentIdr;
+  const monthlyIdr = envelope ? monthlyBudgetIdr(envelope, fxRates) : 0;
+  const balanceIdr = envelope
+    ? resolveEnvelopeBalanceIdr({
+        isTrip: isTripEnvelope,
+        monthlyBudgetIdr: monthlyIdr,
+        spentIdr,
+        monthSpentIdr,
+        budgetMonths,
+        availableIdr,
+      })
+    : 0;
   const balanceDisplay = dc === "IDR" ? balanceIdr : convert(balanceIdr, "IDR", dc, fxRates);
   const availableDisplay = dc === "IDR" ? availableIdr : convert(availableIdr, "IDR", dc, fxRates);
   const isOverBudget = balanceIdr < 0;

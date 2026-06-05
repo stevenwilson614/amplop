@@ -2,11 +2,14 @@ import type { Envelope } from "@/lib/types";
 import type { FxRates } from "@/lib/types";
 import { format, convert } from "@/lib/currency";
 import { budgetBarPct } from "@/lib/budgetProgress";
+import { monthlyBudgetIdr, resolveEnvelopeBalanceIdr } from "@/lib/envelopeBudget";
 
 interface Props {
   envelope: Envelope;
   spentIdr: number;
   availableIdr?: number;
+  monthSpentIdr?: number;
+  budgetMonths?: number;
   paceMarkerPct?: number;
   displayCurrency: string;
   fxRates: FxRates;
@@ -18,6 +21,8 @@ export default function EnvelopeCard({
   envelope,
   spentIdr,
   availableIdr,
+  monthSpentIdr = 0,
+  budgetMonths,
   paceMarkerPct = 0,
   displayCurrency,
   fxRates,
@@ -26,16 +31,20 @@ export default function EnvelopeCard({
 }: Props) {
   const dc = displayCurrency;
 
-  const monthlyBudgetIdr = envelope.budget_currency === "IDR"
-    ? envelope.budget_amount
-    : convert(envelope.budget_amount, envelope.budget_currency, "IDR", fxRates);
-
-  const totalAvailableIdr = availableIdr ?? monthlyBudgetIdr;
-  const balanceIdr = totalAvailableIdr - spentIdr;
+  const monthlyIdr = monthlyBudgetIdr(envelope, fxRates);
+  const totalAvailableIdr = availableIdr ?? monthlyIdr;
+  const balanceIdr = resolveEnvelopeBalanceIdr({
+    isTrip,
+    monthlyBudgetIdr: monthlyIdr,
+    spentIdr,
+    monthSpentIdr,
+    budgetMonths: budgetMonths ?? 1,
+    availableIdr: totalAvailableIdr,
+  });
 
   const monthlyDisplay = dc === "IDR"
-    ? monthlyBudgetIdr
-    : convert(monthlyBudgetIdr, "IDR", dc, fxRates);
+    ? monthlyIdr
+    : convert(monthlyIdr, "IDR", dc, fxRates);
   const balanceDisplay = dc === "IDR" ? balanceIdr : convert(balanceIdr, "IDR", dc, fxRates);
 
   const barPct = budgetBarPct(spentIdr, totalAvailableIdr, isTrip ? "remaining" : "spent");

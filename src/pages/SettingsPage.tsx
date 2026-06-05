@@ -13,6 +13,7 @@ import {
   syncEnvelopeRemainings,
   REMAINING_BALANCES_TEMPLATE,
 } from "@/lib/goodbudgetImport";
+import { buildFirstActivityMap } from "@/lib/envelopeBudget";
 import type { DbUser, Envelope, EnvelopeSpent } from "@/lib/types";
 
 const CURRENCIES = Object.keys(CURRENCY_DECIMALS);
@@ -146,7 +147,18 @@ export default function SettingsPage() {
         spentMap[row.envelope_id] = Number(row.spent_idr);
       }
 
-      const result = await syncEnvelopeRemainings({ remainings, envelopes, spentMap });
+      const { data: txs } = await supabase
+        .from("transactions")
+        .select("date, allocations:transaction_allocations(envelope_id)")
+        .eq("household_id", household.id);
+      const firstActivityMap = buildFirstActivityMap(txs ?? []);
+
+      const result = await syncEnvelopeRemainings({
+        remainings,
+        envelopes,
+        spentMap,
+        firstActivityMap,
+      });
       await refetch();
       window.dispatchEvent(new CustomEvent("amplop:data-changed"));
 

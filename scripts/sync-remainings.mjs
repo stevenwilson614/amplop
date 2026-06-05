@@ -75,15 +75,30 @@ function findEnvelope(envelopes, key) {
   return undefined;
 }
 
-function monthsElapsed(createdAt) {
+function monthsElapsed(createdAt, firstTxDate) {
   const created = new Date(createdAt);
+  const start = firstTxDate
+    ? new Date(`${firstTxDate}T00:00:00`)
+    : created;
+  const budgetStart = firstTxDate && start.getTime() < created.getTime() ? start : created;
   const now = new Date();
   return Math.max(
     1,
-    (now.getFullYear() - created.getFullYear()) * 12 +
-      (now.getMonth() - created.getMonth()) +
+    (now.getFullYear() - budgetStart.getFullYear()) * 12 +
+      (now.getMonth() - budgetStart.getMonth()) +
       1
   );
+}
+
+function buildFirstActivityMap(txs) {
+  const map = {};
+  for (const tx of txs ?? []) {
+    for (const alloc of tx.allocations ?? []) {
+      const id = alloc.envelope_id;
+      if (!map[id] || tx.date < map[id]) map[id] = tx.date;
+    }
+  }
+  return map;
 }
 
 async function main() {
@@ -100,8 +115,10 @@ async function main() {
 
   const { data: txs } = await sb
     .from("transactions")
-    .select("id, amount, amount_idr_snapshot, allocations:transaction_allocations(envelope_id, amount)")
+    .select("id, date, amount, amount_idr_snapshot, allocations:transaction_allocations(envelope_id, amount)")
     .eq("household_id", householdId);
+
+  const firstActivityMap = buildFirstActivityMap(txs);
 
   const spentMap = {};
   for (const t of txs ?? []) {
@@ -127,7 +144,7 @@ async function main() {
       continue;
     }
     const spent = spentMap[env.id] ?? 0;
-    const months = monthsElapsed(env.created_at);
+    const months = monthsElapsed(env.created_at, firstActivityMap[env.id]);
     const monthlyBudget = Math.max(0, Math.ceil((remaining + spent) / months));
 
     const { error } = await sb.from("envelopes").update({
