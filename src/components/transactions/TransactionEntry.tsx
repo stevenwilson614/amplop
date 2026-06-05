@@ -37,6 +37,11 @@ const TX_TYPE_LABELS: Record<TxType, string> = {
   transfer: "Envelope transfer",
 };
 
+function currencyForEnvelope(env: Envelope | undefined, fallback: string): string {
+  if (env?.trip_id) return env.budget_currency;
+  return fallback;
+}
+
 export default function TransactionEntry({
   open, onClose, onSaved, envelopes, categories = [], dbUser, household, fxRates, defaultEnvelope, prefill,
 }: Props) {
@@ -84,7 +89,6 @@ export default function TransactionEntry({
     setNotes("");
     setDate(today());
     setUseSplits(false);
-    setCurrency("IDR");
     setSplitMode("amount");
 
     const matchedByName = prefill?.envelopeName
@@ -92,6 +96,7 @@ export default function TransactionEntry({
       : undefined;
     const env = defaultEnvelope ?? matchedByName ?? envelopes[0];
     const initialId = env?.id ?? "";
+    const fallbackCurrency = dbUser.display_currency ?? "IDR";
 
     setTxType(prefill?.txType ?? "expense");
     setAmount(prefill?.amount ?? "");
@@ -100,7 +105,15 @@ export default function TransactionEntry({
     setFromEnvelopeId(initialId);
     setSplits(initialId ? [{ envelope_id: initialId, value: "" }] : []);
     setLockEnvelope(Boolean(defaultEnvelope?.id));
-  }, [open, defaultEnvelope, envelopes, prefill]);
+    setCurrency(currencyForEnvelope(env, fallbackCurrency));
+  }, [open, defaultEnvelope, envelopes, prefill, dbUser.display_currency]);
+
+  useEffect(() => {
+    if (!open || !envelopeId) return;
+    const env = envelopes.find((e) => e.id === envelopeId);
+    if (!env) return;
+    setCurrency(currencyForEnvelope(env, dbUser.display_currency ?? "IDR"));
+  }, [envelopeId, open, envelopes, dbUser.display_currency]);
 
   useEffect(() => {
     if (!open || !household) return;
@@ -351,7 +364,7 @@ export default function TransactionEntry({
                 placeholder="0"
                 className="w-full bg-transparent text-right font-mono text-2xl text-brand-text placeholder:text-[#B9C0CB] focus:outline-none"
               />
-              <span className="font-mono text-xl text-brand-text-muted">IDR</span>
+              <span className="font-mono text-xl text-brand-text-muted">{currency}</span>
             </div>
           </Row>
 
