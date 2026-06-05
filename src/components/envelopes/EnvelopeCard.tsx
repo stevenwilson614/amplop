@@ -53,7 +53,7 @@ export default function EnvelopeCard({
 
   const barPct = isTrip
     ? budgetBarPct(spentIdr, totalAvailableIdr, "remaining")
-    : budgetBarPct(monthSpentIdr, monthlyIdr, "spent");
+    : budgetBarPct(monthSpentIdr, monthlyIdr, "remaining");
   const over = balanceIdr < 0;
 
   return (
