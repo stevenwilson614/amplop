@@ -33,6 +33,11 @@ export function dayLabelForOffset(offset: number): string {
   return `${-offset} days ago`;
 }
 
+export function animalImageUrl(filename: string): string {
+  if (filename.startsWith("http://") || filename.startsWith("https://")) return filename;
+  return `${import.meta.env.BASE_URL}animals/${filename}`;
+}
+
 export function seenStorageKey(userId: string): string {
   const d = new Date().toLocaleDateString("en-CA");
   return `amplop_animal_seen_${userId}_${d}`;

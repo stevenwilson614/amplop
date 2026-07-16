@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import type { AnimalFactEntry } from "@/data/indonesiaAnimals";
 import { ANIMAL_BIOME_STYLES } from "@/data/indonesiaAnimals";
+import { nextAnimalImageFallback, resolveAnimalImageSrc } from "@/lib/animalImageResolve";
 
 export function FactBody({ text, highlight }: { text: string; highlight: string }) {
   if (!highlight || !text.includes(highlight)) {
@@ -41,6 +43,26 @@ export default function AnimalFactCard({
   className = "",
 }: Props) {
   const biome = ANIMAL_BIOME_STYLES[fact.biome];
+  const [imgSrc, setImgSrc] = useState(() => resolveAnimalImageSrc(fact.slug));
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    const src = resolveAnimalImageSrc(fact.slug);
+    setImgSrc(src);
+    setImgLoaded(false);
+    setImgError(!src);
+  }, [fact.slug]);
+
+  function handleImgError() {
+    const next = nextAnimalImageFallback(fact.slug, imgSrc);
+    if (next) {
+      setImgSrc(next);
+      setImgLoaded(false);
+      return;
+    }
+    setImgError(true);
+  }
 
   return (
     <article
@@ -94,17 +116,43 @@ export default function AnimalFactCard({
       </div>
 
       <div
-        className="relative mx-4 mt-4 flex aspect-[4/3] flex-col items-center justify-center overflow-hidden rounded-2xl"
+        className="relative mx-4 mt-4 aspect-[4/3] overflow-hidden rounded-2xl"
         style={{
           background: `linear-gradient(160deg, ${biome.from} 0%, ${biome.to} 100%)`,
         }}
       >
-        <span className="select-none text-[5.5rem] leading-none drop-shadow-md" aria-hidden>
-          {fact.emoji}
-        </span>
-        <span className="mt-3 rounded-full bg-white/15 px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-white/90">
-          {biome.label} · Indonesia
-        </span>
+        {!imgLoaded && !imgError && imgSrc && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-10 w-10 animate-pulse rounded-full bg-white/20" />
+          </div>
+        )}
+        {imgError || !imgSrc ? (
+          <div className="flex h-full flex-col items-center justify-center">
+            <span className="select-none text-[5.5rem] leading-none drop-shadow-md" aria-hidden>
+              {fact.emoji}
+            </span>
+            <span className="mt-3 rounded-full bg-white/15 px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-white/90">
+              {biome.label} · Indonesia
+            </span>
+          </div>
+        ) : (
+          <>
+            <img
+              key={imgSrc}
+              src={imgSrc}
+              alt={fact.species}
+              referrerPolicy="no-referrer"
+              className={`h-full w-full object-cover transition-opacity duration-300 ${
+                imgLoaded ? "opacity-100" : "opacity-0"
+              }`}
+              onLoad={() => setImgLoaded(true)}
+              onError={handleImgError}
+            />
+            <span className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/35 px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-white/95 backdrop-blur-sm">
+              {biome.label} · Indonesia
+            </span>
+          </>
+        )}
       </div>
 
       <div className="px-6 pb-8 pt-6 text-center">
