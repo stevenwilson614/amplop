@@ -1,0 +1,90 @@
+import { useEffect, useState } from "react";
+import { useHousehold } from "@/context/HouseholdContext";
+import AnimalFabIcon from "@/components/animals/AnimalFabIcon";
+import AnimalFactCard from "@/components/animals/AnimalFactCard";
+import {
+  dayLabelForOffset,
+  getAnimalFactWithOffset,
+  hasSeenTodayAnimal,
+  isAnimalFactsEnabled,
+  markSeenTodayAnimal,
+} from "@/lib/animalFactDay";
+
+export default function AnimalBuddy() {
+  const { dbUser } = useHousehold();
+  const [open, setOpen] = useState(false);
+  const [viewOffset, setViewOffset] = useState(0);
+
+  const enabled = isAnimalFactsEnabled(dbUser);
+  const userId = dbUser?.id ?? "";
+  const fact = getAnimalFactWithOffset(viewOffset);
+  const canGoBack = viewOffset === 0;
+  const canGoForward = viewOffset === -1;
+
+  useEffect(() => {
+    if (!enabled || !userId) return;
+    if (!hasSeenTodayAnimal(userId)) {
+      setViewOffset(0);
+      setOpen(true);
+    }
+  }, [enabled, userId]);
+
+  if (!enabled || !dbUser) return null;
+
+  function dismiss() {
+    if (viewOffset === 0) markSeenTodayAnimal(userId);
+    setOpen(false);
+    setViewOffset(0);
+  }
+
+  function openToday() {
+    setViewOffset(0);
+    setOpen(true);
+  }
+
+  const unseen = !hasSeenTodayAnimal(userId);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={openToday}
+        aria-label="Today's Indonesian animal"
+        className={`absolute bottom-[calc(var(--app-bottom-nav-height)+0.75rem)] right-3 z-[65] flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform active:scale-95 ${
+          unseen
+            ? "bg-gradient-to-br from-[#3d9b6e] to-[#1e4d3a] ring-2 ring-[#7dcea0] ring-offset-2 ring-offset-[rgba(235,238,242,0.9)] animate-bounce"
+            : "bg-gradient-to-br from-[#3d9b6e] to-[#1e4d3a] ring-1 ring-white/40"
+        }`}
+      >
+        <AnimalFabIcon className="h-9 w-9 drop-shadow-sm" />
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f1c2e]/55 p-4 backdrop-blur-[2px]"
+          onClick={dismiss}
+          role="presentation"
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-[380px] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="animal-fact-title"
+          >
+            <AnimalFactCard
+              fact={fact}
+              dayLabel={dayLabelForOffset(viewOffset)}
+              showClose
+              onClose={dismiss}
+              showBack={canGoBack}
+              onBack={() => setViewOffset((o) => o - 1)}
+              showForward={canGoForward}
+              onForward={() => setViewOffset(0)}
+              forwardLabel="today →"
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

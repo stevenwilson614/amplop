@@ -11,9 +11,9 @@ import TransactionsPage from "@/pages/TransactionsPage";
 import InsightsPage from "@/pages/InsightsPage";
 import VoicePage from "@/pages/VoicePage";
 import SettingsPage from "@/pages/SettingsPage";
-import WhaleFactsPreviewPage from "@/pages/WhaleFactsPreviewPage";
+import AnimalFactsPreviewPage from "@/pages/AnimalFactsPreviewPage";
 import BottomNav from "@/components/BottomNav";
-import WhaleBuddy from "@/components/whale/WhaleBuddy";
+import AnimalBuddy from "@/components/animals/AnimalBuddy";
 
 /** After login, send new users to onboarding (household code), not straight to envelopes. */
 function PostLoginRedirect() {
@@ -57,7 +57,7 @@ function AppShell() {
         <main className="flex-1 min-h-0 overflow-auto">
           <Outlet />
         </main>
-        <WhaleBuddy />
+        <AnimalBuddy />
         <BottomNav />
       </div>
     </div>
@@ -114,7 +114,8 @@ export default function App() {
     <HashRouter>
       <Routes>
         <Route path="/login" element={session ? <PostLoginRedirect /> : <LoginPage />} />
-        <Route path="/whale-preview" element={<WhaleFactsPreviewPage />} />
+        <Route path="/animals-preview" element={<AnimalFactsPreviewPage />} />
+        <Route path="/whale-preview" element={<Navigate to="/animals-preview" replace />} />
         <Route element={<AuthGuard session={session} />}>
           <Route path="/onboard" element={<OnboardingPage />} />
           <Route index element={<Navigate to="/envelopes" replace />} />

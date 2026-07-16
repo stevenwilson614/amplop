@@ -276,14 +276,14 @@ export default function SettingsPage() {
           </form>
         </section>
 
-        {/* Whale facts */}
+        {/* Indonesia animals */}
         <section>
           <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">fun</p>
           <div className="flex items-center justify-between rounded-xl border border-brand-border bg-brand-primary p-4">
             <div className="pr-4">
-              <p className="font-mono text-sm font-semibold text-brand-text">whale facts</p>
+              <p className="font-mono text-sm font-semibold text-brand-text">Indonesia animals</p>
               <p className="mt-1 font-mono text-xs text-brand-text-muted leading-relaxed">
-                Daily whale pic + fun fact. Tap the whale on any screen.
+                Daily card: where they live + a fun fact. 60 animals — a new one each day for ~2 months. Tap the paw button.
               </p>
             </div>
             <button
