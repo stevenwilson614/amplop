@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import type { Envelope, Transaction } from "@/lib/types";
 import type { FxRates } from "@/lib/types";
 import { convert, format } from "@/lib/currency";
-import { budgetBarPct } from "@/lib/budgetProgress";
+import { balanceVsMonthlyBarPct, budgetBarPct } from "@/lib/budgetProgress";
 import { monthlyBudgetIdr, resolveEnvelopeBalanceIdr } from "@/lib/envelopeBudget";
 import WhaleMood from "@/components/ui/WhaleMood";
 import SwipeToDeleteRow from "@/components/ui/SwipeToDeleteRow";
@@ -139,7 +139,7 @@ export default function EnvelopeDetailSheet({
 
   const barPct = isTripEnvelope
     ? budgetBarPct(spentIdr, availableIdr, "remaining")
-    : budgetBarPct(monthSpentIdr, monthlyIdr, "remaining");
+    : balanceVsMonthlyBarPct(balanceIdr, monthlyIdr);
 
   return (
     <div className="fixed inset-x-0 top-0 bottom-bottom-nav z-40 flex flex-col bg-brand-surface sm:mx-auto sm:max-w-[430px] sm:overflow-hidden sm:rounded-[34px]">

@@ -1,7 +1,7 @@
 import type { Envelope } from "@/lib/types";
 import type { FxRates } from "@/lib/types";
 import { format, convert } from "@/lib/currency";
-import { budgetBarPct } from "@/lib/budgetProgress";
+import { balanceVsMonthlyBarPct, budgetBarPct } from "@/lib/budgetProgress";
 import { monthlyBudgetIdr, resolveEnvelopeBalanceIdr } from "@/lib/envelopeBudget";
 
 interface Props {
@@ -53,7 +53,7 @@ export default function EnvelopeCard({
 
   const barPct = isTrip
     ? budgetBarPct(spentIdr, totalAvailableIdr, "remaining")
-    : budgetBarPct(monthSpentIdr, monthlyIdr, "remaining");
+    : balanceVsMonthlyBarPct(balanceIdr, monthlyIdr);
   const over = balanceIdr < 0;
 
   return (

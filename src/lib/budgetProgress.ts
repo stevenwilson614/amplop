@@ -21,3 +21,14 @@ export function budgetBarPct(
     ? budgetRemainingPct(spentIdr, availableIdr)
     : budgetSpentPct(spentIdr, availableIdr);
 }
+
+/**
+ * Household bar aligned with the big "amount left" number:
+ * fill = balance ÷ monthly budget (capped at 100%).
+ * So ~full monthly leftover → nearly full green; overspent → empty.
+ */
+export function balanceVsMonthlyBarPct(balanceIdr: number, monthlyBudgetIdr: number): number {
+  if (monthlyBudgetIdr <= 0) return balanceIdr > 0 ? 100 : 0;
+  if (balanceIdr <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((balanceIdr / monthlyBudgetIdr) * 100)));
+}
