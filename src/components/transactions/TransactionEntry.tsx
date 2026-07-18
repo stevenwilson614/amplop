@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Envelope, DbUser, Household, FxRates, Category, TxType } from "@/lib/types";
-import { parseToMinorUnits, getRate, convert, format, CURRENCY_DECIMALS } from "@/lib/currency";
+import { parseToMinorUnits, convert, format, CURRENCY_DECIMALS } from "@/lib/currency";
 import EnvelopePicker from "@/components/transactions/EnvelopePicker";
 import PayeePicker from "@/components/transactions/PayeePicker";
 import type { TransactionPrefill } from "@/context/TransactionModalContext";
@@ -11,6 +11,8 @@ import {
   buildPayeeHistoryMap,
   resolveEnvelopeForPayee,
 } from "@/lib/payeeEnvelopeMatch";
+import { saveTransaction } from "@/lib/saveTransaction";
+import { parseQuickExpense, amountMinorToInput } from "@/lib/quickExpenseParse";
 
 interface Props {
   open: boolean;
@@ -61,6 +63,7 @@ export default function TransactionEntry({
   const [error, setError] = useState("");
   const [payeeHistoryMap, setPayeeHistoryMap] = useState<Map<string, string>>(new Map());
   const [lockEnvelope, setLockEnvelope] = useState(false);
+  const [quickText, setQuickText] = useState("");
 
   const regularEnvelopes = useMemo(
     () => envelopes.filter((e) => !e.trip_id),
@@ -106,7 +109,26 @@ export default function TransactionEntry({
     setSplits(initialId ? [{ envelope_id: initialId, value: "" }] : []);
     setLockEnvelope(Boolean(defaultEnvelope?.id));
     setCurrency(currencyForEnvelope(env, fallbackCurrency));
+    setQuickText("");
   }, [open, defaultEnvelope, envelopes, prefill, dbUser.display_currency]);
+
+  function applyQuickText() {
+    const parsed = parseQuickExpense(quickText);
+    if (!parsed) {
+      setError("couldn’t parse — try “45.000rp ambrogio”");
+      return;
+    }
+    setError("");
+    setTxType("expense");
+    setAmount(amountMinorToInput(parsed.amountMinor, parsed.currency));
+    setCurrency(parsed.currency);
+    setMerchant(parsed.merchant);
+    const match = resolveEnvelopeForPayee(parsed.merchant, orderedEnvelopes, payeeHistoryMap);
+    if (match) {
+      setEnvelopeId(match.id);
+      setSplits([{ envelope_id: match.id, value: "" }]);
+    }
+  }
 
   useEffect(() => {
     if (!open || !envelopeId) return;
@@ -159,11 +181,6 @@ export default function TransactionEntry({
     setError("");
     try {
       const amountMinor = parseToMinorUnits(amount, currency);
-      if (amountMinor <= 0) throw new Error("enter amount");
-
-      const amountIdr = convert(amountMinor, currency, "IDR", fxRates);
-      const fxRate = currency === "IDR" ? 1 : getRate(fxRates, currency, "IDR");
-
       const allocRows = buildAllocationRows({
         txType,
         amountMinor,
@@ -174,34 +191,19 @@ export default function TransactionEntry({
         splitMode,
         currency,
       });
-      if (allocRows.length === 0) throw new Error("select envelope(s)");
 
-      const { data: tx, error: txErr } = await supabase
-        .from("transactions")
-        .insert({
-          household_id: household.id,
-          user_id: dbUser.id,
-          tx_type: txType,
-          amount: amountMinor,
-          currency,
-          amount_idr_snapshot: amountIdr,
-          fx_rate_snapshot: fxRate,
-          date,
-          merchant_name: txType === "transfer" ? null : (merchant || null),
-          notes: notes || null,
-        })
-        .select()
-        .single();
-      if (txErr) throw txErr;
-
-      const { error: allocErr } = await supabase.from("transaction_allocations").insert(
-        allocRows.map((a) => ({
-          transaction_id: tx.id,
-          envelope_id: a.envelope_id,
-          amount: a.amountMinor,
-        }))
-      );
-      if (allocErr) throw allocErr;
+      await saveTransaction({
+        householdId: household.id,
+        userId: dbUser.id,
+        txType,
+        amountMinor,
+        currency,
+        date,
+        merchantName: merchant || null,
+        notes: notes || null,
+        allocations: allocRows,
+        fxRates,
+      });
 
       onSaved();
       onClose();
@@ -341,6 +343,31 @@ export default function TransactionEntry({
       </div>
 
       <form onSubmit={handleSave} className="flex-1 overflow-auto bg-brand-bg pb-10">
+        {txType === "expense" && (
+          <div className="mx-4 mt-4 flex gap-2">
+            <input
+              type="text"
+              value={quickText}
+              onChange={(e) => setQuickText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyQuickText();
+                }
+              }}
+              placeholder="45.000rp ambrogio"
+              className="flex-1 rounded-xl border border-brand-border bg-brand-surface px-3 py-2 font-mono text-sm text-brand-text placeholder:text-brand-text-muted focus:outline-none focus:ring-2 focus:ring-brand-accent"
+            />
+            <button
+              type="button"
+              onClick={applyQuickText}
+              className="rounded-xl bg-brand-accent px-3 py-2 font-mono text-xs font-semibold text-white"
+            >
+              parse
+            </button>
+          </div>
+        )}
+
         <section className="mt-4 border-y border-brand-border bg-brand-surface">
           <TappableRow label="Type" onClick={() => setScreen("type")}>
             <span className="font-mono text-2xl font-medium">{TX_TYPE_LABELS[txType]}</span>

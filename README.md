@@ -4,43 +4,36 @@ Two-person household envelope budgeting PWA (Indonesian: *amplop* = envelope).
 
 ## Stack
 
-- Next.js 14 (App Router) + TypeScript + Tailwind
+- Vite + React 18 + TypeScript + Tailwind
 - Supabase (Auth, Postgres, Realtime, Edge Functions)
-- Deploy target: Cloudflare Pages (not Vercel)
+- Deploy via `gh-pages` / static hosting
 
-## Phase 1 (current)
+## Features
 
-- Magic-link auth
-- Bottom tab navigation
-- Empty Envelopes screen
-- PWA manifest + service worker stub
+- Envelope budgets (monthly + save-for / sinking funds)
+- Freedom panel: cash snapshots, earmarked vs investable surplus
+- Trip planner with daily draws + funding gap / cover suggestions
+- Quick text expense logging (`45.000rp ambrogio`)
+- USD/IDR spot + 30-day average for planning
+- Budget year setting (default January)
+- Insights coach with freedom / trip context
 
 ## Setup
 
 ```bash
 cp .env.example .env.local
-# Add your Supabase URL and anon key
+# Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
 
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-### Supabase Auth
-
-1. Enable Email magic link in Authentication → Providers.
-2. Site URL: `http://localhost:3000`
-3. Redirect URLs: `http://localhost:3000/auth/callback`
+Open [http://localhost:5173](http://localhost:5173).
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Development server |
+| `npm run dev` | Vite development server |
 | `npm run build` | Production build |
-| `npm run start` | Run production build locally |
-
-## Build phases
-
-See project plan: Phase 2 = schema + envelopes CRUD, then transactions, FX, trips, realtime, insights, voice, offline.
+| `npm run preview` | Preview production build |

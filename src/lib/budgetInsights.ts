@@ -11,17 +11,29 @@ export interface MonthSpend {
 export interface EnvelopeSnapshot {
   id: string;
   name: string;
+  kind: "monthly" | "sinking";
   monthlyBudgetIdr: number;
   totalSpentIdr: number;
   balanceIdr: number;
   avgMonthlySpendIdr: number;
   monthHistory: MonthSpend[];
+  targetAmountIdr?: number;
+  dueDate?: string | null;
+}
+
+export interface FreedomSnapshot {
+  cashIdr: number;
+  earmarkedTotalIdr: number;
+  investableIdr: number;
+  overcommitted: boolean;
+  avgIncomeIdr: number | null;
 }
 
 export interface BudgetSnapshot {
   displayCurrency: string;
   generatedAt: string;
   envelopes: EnvelopeSnapshot[];
+  freedom?: FreedomSnapshot;
 }
 
 interface TxRow {
@@ -38,8 +50,12 @@ export function buildBudgetSnapshot(args: {
   fxRates: FxRates;
   displayCurrency: string;
   monthsBack?: number;
+  freedom?: FreedomSnapshot;
+  balancesById?: Record<string, number>;
 }): BudgetSnapshot {
-  const { envelopes, spentMap, monthTxs, fxRates, displayCurrency, monthsBack = 12 } = args;
+  const {
+    envelopes, spentMap, monthTxs, fxRates, displayCurrency, monthsBack = 12, freedom, balancesById,
+  } = args;
 
   const monthKeys = lastMonths(monthsBack);
   const historyMap: Record<string, Record<string, number>> = {};
@@ -71,15 +87,23 @@ export function buildBudgetSnapshot(args: {
     const avgMonthlySpendIdr = monthsWithSpend.length
       ? Math.round(monthsWithSpend.reduce((s, h) => s + h.spentIdr, 0) / monthsWithSpend.length)
       : 0;
+    const targetAmountIdr = env.target_amount
+      ? (env.target_currency === "IDR" || !env.target_currency
+          ? env.target_amount
+          : convert(env.target_amount, env.target_currency, "IDR", fxRates))
+      : undefined;
 
     return {
       id: env.id,
       name: env.name,
+      kind: (env.kind ?? "monthly") as "monthly" | "sinking",
       monthlyBudgetIdr,
       totalSpentIdr,
-      balanceIdr: monthlyBudgetIdr - totalSpentIdr,
+      balanceIdr: balancesById?.[env.id] ?? monthlyBudgetIdr - totalSpentIdr,
       avgMonthlySpendIdr,
       monthHistory: history,
+      targetAmountIdr,
+      dueDate: env.due_date,
     };
   });
 
@@ -87,6 +111,7 @@ export function buildBudgetSnapshot(args: {
     displayCurrency,
     generatedAt: new Date().toISOString(),
     envelopes: envelopeSnapshots,
+    freedom,
   };
 }
 

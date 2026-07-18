@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useHousehold } from "@/context/HouseholdContext";
 import { supabase } from "@/lib/supabase";
-import type { Envelope, Category, EnvelopeSpent, Trip } from "@/lib/types";
+import type { Envelope, Category, EnvelopeSpent, Trip, CashSnapshot, EnvelopeKind } from "@/lib/types";
 import EnvelopeCard from "@/components/envelopes/EnvelopeCard";
 import EnvelopeSheet from "@/components/envelopes/EnvelopeSheet";
 import { convert, format } from "@/lib/currency";
@@ -22,15 +22,22 @@ import { syncTripDailyDraws, deleteTripDrawTransactions } from "@/lib/tripDraws"
 import EnvelopeDetailSheet from "@/components/envelopes/EnvelopeDetailSheet";
 import EditBudgetMode from "@/components/envelopes/EditBudgetMode";
 import CategorySheet from "@/components/envelopes/CategorySheet";
+import FreedomPanel from "@/components/freedom/FreedomPanel";
+import CashSnapshotSheet from "@/components/freedom/CashSnapshotSheet";
+import SinkingFundsSection from "@/components/envelopes/SinkingFundsSection";
+import { computeInvestable } from "@/lib/investableSurplus";
+import { isSinking } from "@/lib/sinkingFunds";
+import { formatUsdIdrLabel } from "@/lib/fxAverage";
 
 export default function EnvelopesPage() {
-  const { household, dbUser, fxRates, refetch } = useHousehold();
+  const { household, dbUser, fxRates, fxRatesAvg30d, refetch } = useHousehold();
   const { openTransaction, setContextEnvelope } = useTransactionModal();
   const [categories, setCategories] = useState<Category[]>([]);
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
   const [spentMap, setSpentMap] = useState<Record<string, number>>({});
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editEnvelope, setEditEnvelope] = useState<Envelope | undefined>();
+  const [sheetDefaultKind, setSheetDefaultKind] = useState<EnvelopeKind>("monthly");
   const [tripSheetOpen, setTripSheetOpen] = useState(false);
   const [tripLineItemSheetOpen, setTripLineItemSheetOpen] = useState(false);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
@@ -43,6 +50,9 @@ export default function EnvelopesPage() {
   const [editModeOpen, setEditModeOpen] = useState(false);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+  const [cashSnapshots, setCashSnapshots] = useState<CashSnapshot[]>([]);
+  const [cashSheetOpen, setCashSheetOpen] = useState(false);
+  const [avgIncomeIdr, setAvgIncomeIdr] = useState<number | null>(null);
 
   useEffect(() => {
     if (!plusMenuOpen) return;
@@ -77,25 +87,42 @@ export default function EnvelopesPage() {
     monthStart.setDate(1);
     const monthStartIso = monthStart.toLocaleDateString("en-CA");
 
-    const [{ data: cats }, { data: envs }, { data: spent }, tripEnvsResp, historyTxs] = await Promise.all([
-      supabase.from("categories").select("*").eq("household_id", household.id).order("sort_order"),
-      supabase.from("envelopes").select("*").eq("household_id", household.id).is("trip_id", null).order("sort_order"),
-      supabase.rpc("get_envelope_spent"),
-      currentTrip
-        ? supabase.from("envelopes").select("*").eq("household_id", household.id).eq("trip_id", currentTrip.id).is("parent_envelope_id", null).order("sort_order")
-        : Promise.resolve({ data: [] as Envelope[] }),
-      fetchAllHouseholdTransactions(household.id),
-    ]);
+    const [{ data: cats }, { data: envs }, { data: spent }, tripEnvsResp, historyTxs, cashResp, incomeTxs] =
+      await Promise.all([
+        supabase.from("categories").select("*").eq("household_id", household.id).order("sort_order"),
+        supabase.from("envelopes").select("*").eq("household_id", household.id).is("trip_id", null).order("sort_order"),
+        supabase.rpc("get_envelope_spent"),
+        currentTrip
+          ? supabase.from("envelopes").select("*").eq("household_id", household.id).eq("trip_id", currentTrip.id).is("parent_envelope_id", null).order("sort_order")
+          : Promise.resolve({ data: [] as Envelope[] }),
+        fetchAllHouseholdTransactions(household.id),
+        supabase
+          .from("cash_snapshots")
+          .select("*")
+          .eq("household_id", household.id)
+          .order("as_of_date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(24),
+        supabase
+          .from("transactions")
+          .select("date, amount_idr_snapshot, tx_type")
+          .eq("household_id", household.id)
+          .eq("tx_type", "income")
+          .order("date", { ascending: false })
+          .limit(200),
+      ]);
     setCategories(cats ?? []);
     setEnvelopes(envs ?? []);
     setTripEnvelopes(tripEnvsResp.data ?? []);
+    setCashSnapshots((cashResp.data as CashSnapshot[]) ?? []);
     const map: Record<string, number> = {};
     for (const row of (spent as EnvelopeSpent[] ?? [])) {
       map[row.envelope_id] = Number(row.spent_idr);
     }
     setSpentMap(map);
     setFirstActivityMap(buildFirstActivityMap(historyTxs));
-    setMonthSpentByEnvelope(buildMonthSpentByEnvelope(historyTxs));
+    const monthSpentByEnv = buildMonthSpentByEnvelope(historyTxs);
+    setMonthSpentByEnvelope(monthSpentByEnv);
 
     const monthMap: Record<string, number> = {};
     for (const tx of historyTxs) {
@@ -110,6 +137,19 @@ export default function EnvelopesPage() {
       }
     }
     setMonthSpentMap(monthMap);
+
+    const incomeByMonth: Record<string, number> = {};
+    for (const tx of incomeTxs.data ?? []) {
+      const month = String(tx.date).slice(0, 7);
+      incomeByMonth[month] = (incomeByMonth[month] ?? 0) + Number(tx.amount_idr_snapshot || 0);
+    }
+    const incomeMonths = Object.keys(incomeByMonth).sort().slice(-3);
+    if (incomeMonths.length) {
+      const total = incomeMonths.reduce((s, m) => s + incomeByMonth[m], 0);
+      setAvgIncomeIdr(Math.round(total / incomeMonths.length));
+    } else {
+      setAvgIncomeIdr(null);
+    }
   }, [household, dbUser, fxRates]);
 
   useEffect(() => { load(); }, [load]);
@@ -129,13 +169,15 @@ export default function EnvelopesPage() {
     return () => setContextEnvelope(null);
   }, [detailOpen, detailEnvelope, setContextEnvelope]);
 
-  function openAdd() {
+  function openAdd(kind: EnvelopeKind = "monthly") {
     setEditEnvelope(undefined);
+    setSheetDefaultKind(kind);
     setSheetOpen(true);
   }
 
   function openEdit(env: Envelope) {
     setEditEnvelope(env);
+    setSheetDefaultKind(env.kind ?? "monthly");
     setSheetOpen(true);
   }
 
@@ -166,7 +208,11 @@ export default function EnvelopesPage() {
   }
 
   const dc = dbUser?.display_currency ?? "IDR";
-  const totalBudgetIdr = envelopes.reduce((sum, env) => {
+  const planningFx = Object.keys(fxRatesAvg30d).length ? fxRatesAvg30d : fxRates;
+  const monthlyEnvelopes = useMemo(() => envelopes.filter((e) => !isSinking(e)), [envelopes]);
+  const sinkingEnvelopes = useMemo(() => envelopes.filter((e) => isSinking(e)), [envelopes]);
+
+  const totalBudgetIdr = monthlyEnvelopes.reduce((sum, env) => {
     const budgetIdr = env.budget_currency === "IDR"
       ? env.budget_amount
       : convert(env.budget_amount, env.budget_currency, "IDR", fxRates);
@@ -178,13 +224,11 @@ export default function EnvelopesPage() {
   const tripSpentLocal = activeTrip
     ? (activeTrip.currency === "IDR" ? tripSpentMinor : convert(tripSpentMinor, "IDR", activeTrip.currency, fxRates))
     : 0;
-  const usdIdrRate = Number(fxRates["USD_IDR"] ?? 0);
-  const usdIdrLabel = usdIdrRate
-    ? `USD/IDR Rp ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(usdIdrRate)}`
-    : "USD/IDR -";
+  const usdIdrLabel = formatUsdIdrLabel(
+    Number(fxRates["USD_IDR"] ?? 0),
+    Number(fxRatesAvg30d["USD_IDR"] ?? 0)
+  );
 
-  // Group envelopes by category (plus uncategorised)
-  const grouped = groupByCategory(envelopes, categories);
   const perfMap = buildEnvelopePerfMap(
     [...envelopes, ...tripEnvelopes],
     monthSpentMap,
@@ -194,6 +238,41 @@ export default function EnvelopesPage() {
     firstActivityMap,
     monthSpentByEnvelope
   );
+
+  const balanceIdrById = useMemo(() => {
+    const next: Record<string, number> = {};
+    for (const env of envelopes) {
+      const monthly = monthlyBudgetIdr(env, fxRates);
+      const spent = spentMap[env.id] ?? 0;
+      const perf = perfMap[env.id];
+      next[env.id] = resolveEnvelopeBalanceIdr({
+        envelope: env,
+        isTrip: false,
+        monthlyBudgetIdr: monthly,
+        spentIdr: spent,
+        monthSpentIdr: perf?.monthSpentIdr ?? 0,
+        budgetMonths: perf?.budgetMonths ?? 1,
+        availableIdr: perf?.availableIdr ?? monthly,
+        monthSpentByMonth: perf?.monthSpentByMonth ?? {},
+      });
+    }
+    return next;
+  }, [envelopes, spentMap, fxRates, perfMap]);
+
+  const investable = useMemo(
+    () =>
+      computeInvestable({
+        snapshots: cashSnapshots,
+        balances: envelopes.map((envelope) => ({
+          envelope,
+          balanceIdr: balanceIdrById[envelope.id] ?? 0,
+        })),
+      }),
+    [cashSnapshots, envelopes, balanceIdrById]
+  );
+
+  // Group monthly envelopes by category (plus uncategorised)
+  const grouped = groupByCategory(monthlyEnvelopes, categories);
 
   return (
     <div className="flex min-h-full flex-col bg-brand-surface">
@@ -223,9 +302,16 @@ export default function EnvelopesPage() {
                 <button
                   type="button"
                   className="block w-full px-4 py-3 text-left text-sm text-brand-text hover:bg-brand-bg"
-                  onClick={() => { setPlusMenuOpen(false); openAdd(); }}
+                  onClick={() => { setPlusMenuOpen(false); openAdd("monthly"); }}
                 >
                   Add Envelope
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-4 py-3 text-left text-sm text-brand-text hover:bg-brand-bg"
+                  onClick={() => { setPlusMenuOpen(false); openAdd("sinking"); }}
+                >
+                  Add Save-for
                 </button>
                 <button
                   type="button"
@@ -251,16 +337,36 @@ export default function EnvelopesPage() {
         <div className="flex items-start justify-between gap-2">
           <p className="font-mono text-[9px] text-brand-text-muted">{usdIdrLabel}</p>
           <p className="font-mono text-sm text-brand-text-muted text-right">
-            All Envelopes: {format(totalBudgetDisplay, dc)}
+            Monthly budgets: {format(totalBudgetDisplay, dc)}
           </p>
         </div>
       </div>
 
+      <FreedomPanel
+        snapshot={investable}
+        displayCurrency={dc}
+        fxRates={planningFx}
+        avgIncomeIdr={avgIncomeIdr}
+        onLogCash={() => setCashSheetOpen(true)}
+      />
+
       <div className="flex-1 space-y-6 overflow-auto px-4 pt-3">
-        {grouped.length === 0 && (
+        <SinkingFundsSection
+          envelopes={sinkingEnvelopes}
+          balanceIdrById={balanceIdrById}
+          spentMap={spentMap}
+          perfMap={perfMap}
+          displayCurrency={dc}
+          fxRates={planningFx}
+          budgetYearStartMonth={household?.budget_year_start_month ?? 1}
+          onOpen={openDetail}
+          onAdd={() => openAdd("sinking")}
+        />
+
+        {grouped.length === 0 && sinkingEnvelopes.length === 0 && (
           <div className="text-center py-12">
             <p className="font-mono text-sm text-brand-text-muted">no envelopes yet</p>
-            <button onClick={openAdd} className="mt-3 font-mono text-sm text-brand-accent">+ add envelope</button>
+            <button onClick={() => openAdd("monthly")} className="mt-3 font-mono text-sm text-brand-accent">+ add envelope</button>
           </div>
         )}
         {grouped.map(({ category, items }) => {
@@ -372,6 +478,17 @@ export default function EnvelopesPage() {
         householdId={household?.id ?? ""}
         categories={categories}
         envelope={editEnvelope}
+        defaultKind={sheetDefaultKind}
+      />
+
+      <CashSnapshotSheet
+        open={cashSheetOpen}
+        onClose={() => setCashSheetOpen(false)}
+        onSaved={() => { load(); refetch(); }}
+        householdId={household?.id ?? ""}
+        userId={dbUser?.id ?? ""}
+        fxRates={fxRates}
+        defaultCurrency={dc}
       />
 
       <TripPlannerSheet
@@ -384,7 +501,8 @@ export default function EnvelopesPage() {
         householdId={household?.id ?? ""}
         userId={dbUser?.id ?? ""}
         envelopes={envelopes}
-        fxRates={fxRates}
+        fxRates={planningFx}
+        balancesById={balanceIdrById}
       />
 
       <TripLineItemSheet

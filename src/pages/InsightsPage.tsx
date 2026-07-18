@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useHousehold } from "@/context/HouseholdContext";
 import { supabase } from "@/lib/supabase";
-import type { Envelope, EnvelopeSpent } from "@/lib/types";
+import type { CashSnapshot, Envelope, EnvelopeSpent } from "@/lib/types";
 import { format, convert } from "@/lib/currency";
 import WhaleMood from "@/components/ui/WhaleMood";
 import {
@@ -13,6 +13,15 @@ import {
   type TransferSuggestion,
   type ChatMessage,
 } from "@/lib/budgetInsights";
+import { computeInvestable } from "@/lib/investableSurplus";
+import {
+  monthlyBudgetIdr,
+  resolveEnvelopeBalanceIdr,
+  buildMonthSpentByEnvelope,
+  budgetMonthsElapsed,
+  computeAvailableIdr,
+  envelopeBudgetStartDate,
+} from "@/lib/envelopeBudget";
 
 interface UiMessage {
   id: string;
@@ -23,15 +32,17 @@ interface UiMessage {
 }
 
 const QUICK_PROMPTS = [
+  "How much can we invest right now?",
+  "Can we afford a trip to Amerika?",
   "How are we doing this month?",
-  "Which envelopes are over budget?",
-  "Where could we save money?",
 ];
 
 export default function InsightsPage() {
   const { household, dbUser, fxRates } = useHousehold();
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
   const [spentMap, setSpentMap] = useState<Record<string, number>>({});
+  const [cashSnapshots, setCashSnapshots] = useState<CashSnapshot[]>([]);
+  const [avgIncomeIdr, setAvgIncomeIdr] = useState<number | null>(null);
   const [monthTxs, setMonthTxs] = useState<Array<{
     date: string;
     amount: number;
@@ -52,20 +63,47 @@ export default function InsightsPage() {
     start.setDate(1);
     const startIso = start.toLocaleDateString("en-CA");
 
-    const [{ data: envs }, { data: spent }, { data: txs }] = await Promise.all([
-      supabase.from("envelopes").select("*").eq("household_id", household.id).is("trip_id", null),
-      supabase.rpc("get_envelope_spent"),
-      supabase
-        .from("transactions")
-        .select("date, amount, amount_idr_snapshot, allocations:transaction_allocations(envelope_id, amount)")
-        .eq("household_id", household.id)
-        .gte("date", startIso),
-    ]);
+    const [{ data: envs }, { data: spent }, { data: txs }, { data: cash }, { data: incomeTxs }] =
+      await Promise.all([
+        supabase.from("envelopes").select("*").eq("household_id", household.id).is("trip_id", null),
+        supabase.rpc("get_envelope_spent"),
+        supabase
+          .from("transactions")
+          .select("date, amount, amount_idr_snapshot, allocations:transaction_allocations(envelope_id, amount)")
+          .eq("household_id", household.id)
+          .gte("date", startIso),
+        supabase
+          .from("cash_snapshots")
+          .select("*")
+          .eq("household_id", household.id)
+          .order("as_of_date", { ascending: false })
+          .limit(24),
+        supabase
+          .from("transactions")
+          .select("date, amount_idr_snapshot")
+          .eq("household_id", household.id)
+          .eq("tx_type", "income")
+          .order("date", { ascending: false })
+          .limit(200),
+      ]);
     setEnvelopes(envs ?? []);
     setMonthTxs(txs ?? []);
+    setCashSnapshots((cash as CashSnapshot[]) ?? []);
     const map: Record<string, number> = {};
     for (const row of (spent as EnvelopeSpent[] ?? [])) map[row.envelope_id] = Number(row.spent_idr);
     setSpentMap(map);
+
+    const incomeByMonth: Record<string, number> = {};
+    for (const tx of incomeTxs ?? []) {
+      const month = String(tx.date).slice(0, 7);
+      incomeByMonth[month] = (incomeByMonth[month] ?? 0) + Number(tx.amount_idr_snapshot || 0);
+    }
+    const incomeMonths = Object.keys(incomeByMonth).sort().slice(-3);
+    setAvgIncomeIdr(
+      incomeMonths.length
+        ? Math.round(incomeMonths.reduce((s, m) => s + incomeByMonth[m], 0) / incomeMonths.length)
+        : null
+    );
   }, [household]);
 
   useEffect(() => { load(); }, [load]);
@@ -83,6 +121,51 @@ export default function InsightsPage() {
   const dc = dbUser?.display_currency ?? "IDR";
   const userName = dbUser?.display_name?.trim() || "You";
 
+  const balancesById = useMemo(() => {
+    const monthSpentByEnv = buildMonthSpentByEnvelope(monthTxs);
+    const now = new Date();
+    const monthKey = now.toLocaleDateString("en-CA").slice(0, 7);
+    const next: Record<string, number> = {};
+    for (const env of envelopes) {
+      const monthly = monthlyBudgetIdr(env, fxRates);
+      const monthSpentIdr = monthSpentByEnv[env.id]?.[monthKey] ?? 0;
+      const firstDate = monthTxs
+        .filter((t) => t.allocations?.some((a) => a.envelope_id === env.id))
+        .map((t) => t.date)
+        .sort()[0];
+      const start = envelopeBudgetStartDate(env, firstDate);
+      const budgetMonths = budgetMonthsElapsed(start, now);
+      next[env.id] = resolveEnvelopeBalanceIdr({
+        envelope: env,
+        isTrip: false,
+        monthlyBudgetIdr: monthly,
+        spentIdr: spentMap[env.id] ?? 0,
+        monthSpentIdr,
+        budgetMonths,
+        availableIdr: computeAvailableIdr(env, fxRates, firstDate, now),
+        monthSpentByMonth: monthSpentByEnv[env.id] ?? {},
+      });
+    }
+    return next;
+  }, [envelopes, monthTxs, spentMap, fxRates]);
+
+  const freedom = useMemo(() => {
+    const snap = computeInvestable({
+      snapshots: cashSnapshots,
+      balances: envelopes.map((envelope) => ({
+        envelope,
+        balanceIdr: balancesById[envelope.id] ?? 0,
+      })),
+    });
+    return {
+      cashIdr: snap.cashIdr,
+      earmarkedTotalIdr: snap.earmarkedTotalIdr,
+      investableIdr: snap.investableIdr,
+      overcommitted: snap.overcommitted,
+      avgIncomeIdr,
+    };
+  }, [cashSnapshots, envelopes, balancesById, avgIncomeIdr]);
+
   function buildSnapshot() {
     return buildBudgetSnapshot({
       envelopes,
@@ -90,6 +173,8 @@ export default function InsightsPage() {
       monthTxs,
       fxRates,
       displayCurrency: dc,
+      freedom,
+      balancesById,
     });
   }
 

@@ -3,11 +3,13 @@ import type { DbUser, Household, FxRates } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { buildRates } from "@/lib/currency";
 import { fetchLiveFxRates, mergeFxRates } from "@/lib/fxLive";
+import { buildAverageRates } from "@/lib/fxAverage";
 
 interface HouseholdCtx {
   dbUser: DbUser | null;
   household: Household | null;
   fxRates: FxRates;
+  fxRatesAvg30d: FxRates;
   fxFetchedAt: string | null;
   loading: boolean;
   needsOnboarding: boolean;
@@ -18,6 +20,7 @@ const Ctx = createContext<HouseholdCtx>({
   dbUser: null,
   household: null,
   fxRates: {},
+  fxRatesAvg30d: {},
   fxFetchedAt: null,
   loading: true,
   needsOnboarding: false,
@@ -38,9 +41,24 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [household, setHousehold] = useState<Household | null>(null);
   const [fxRates, setFxRates] = useState<FxRates>({});
+  const [fxRatesAvg30d, setFxRatesAvg30d] = useState<FxRates>({});
   const [fxFetchedAt, setFxFetchedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  const applyFxRows = (rates: { currency_pair: string; rate: number; fetched_at: string }[]) => {
+    const seen = new Set<string>();
+    const latest = rates.filter((r) => {
+      if (seen.has(r.currency_pair)) return false;
+      seen.add(r.currency_pair);
+      return true;
+    });
+    setFxRates(buildRates(latest));
+    setFxRatesAvg30d(buildAverageRates(rates, 30));
+    const usdRow = latest.find((r) => r.currency_pair === "USD/IDR");
+    setFxFetchedAt(usdRow?.fetched_at ?? null);
+    return { latest, usdRow };
+  };
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -66,20 +84,13 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       supabase
         .from("fx_rates")
         .select("currency_pair, rate, fetched_at")
-        .order("fetched_at", { ascending: false }),
+        .order("fetched_at", { ascending: false })
+        .limit(5000),
     ]);
 
     if (hh) setHousehold(hh);
     if (rates) {
-      const seen = new Set<string>();
-      const latest = rates.filter((r) => {
-        if (seen.has(r.currency_pair)) return false;
-        seen.add(r.currency_pair);
-        return true;
-      });
-      setFxRates(buildRates(latest));
-      const usdRow = latest.find((r) => r.currency_pair === "USD/IDR");
-      setFxFetchedAt(usdRow?.fetched_at ?? null);
+      const { usdRow } = applyFxRows(rates);
 
       const fetchedMs = usdRow?.fetched_at ? new Date(usdRow.fetched_at).getTime() : 0;
       const stale = !fetchedMs || Date.now() - fetchedMs > 24 * 60 * 60 * 1000;
@@ -88,28 +99,22 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         const { data: refreshed } = await supabase
           .from("fx_rates")
           .select("currency_pair, rate, fetched_at")
-          .order("fetched_at", { ascending: false });
-        if (refreshed) {
-          const seen2 = new Set<string>();
-          const latest2 = refreshed.filter((r) => {
-            if (seen2.has(r.currency_pair)) return false;
-            seen2.add(r.currency_pair);
-            return true;
-          });
-          setFxRates(buildRates(latest2));
-          const usd2 = latest2.find((r) => r.currency_pair === "USD/IDR");
-          setFxFetchedAt(usd2?.fetched_at ?? null);
-        }
+          .order("fetched_at", { ascending: false })
+          .limit(5000);
+        if (refreshed) applyFxRows(refreshed);
       }
 
-      // Always overlay live market rates so USD/IDR stays current
+      // Always overlay live market rates so USD/IDR stays current (spot only)
       const live = await fetchLiveFxRates();
       if (live) {
         setFxRates((prev) => mergeFxRates(prev, live));
       }
     } else {
       const live = await fetchLiveFxRates();
-      if (live) setFxRates(live);
+      if (live) {
+        setFxRates(live);
+        setFxRatesAvg30d(live);
+      }
     }
     setLoading(false);
   }, []);
@@ -129,8 +134,19 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel); };
   }, [household, load]);
 
-  return (
-    <Ctx.Provider value={{ dbUser, household, fxRates, fxFetchedAt, loading, needsOnboarding, refetch: load }}>
+    return (
+    <Ctx.Provider
+      value={{
+        dbUser,
+        household,
+        fxRates,
+        fxRatesAvg30d,
+        fxFetchedAt,
+        loading,
+        needsOnboarding,
+        refetch: load,
+      }}
+    >
       {children}
     </Ctx.Provider>
   );

@@ -16,12 +16,22 @@ interface BudgetSnapshot {
   envelopes: Array<{
     id: string;
     name: string;
+    kind?: "monthly" | "sinking";
     monthlyBudgetIdr: number;
     totalSpentIdr: number;
     balanceIdr: number;
     avgMonthlySpendIdr: number;
     monthHistory: { month: string; spentIdr: number }[];
+    targetAmountIdr?: number;
+    dueDate?: string | null;
   }>;
+  freedom?: {
+    cashIdr: number;
+    earmarkedTotalIdr: number;
+    investableIdr: number;
+    overcommitted: boolean;
+    avgIncomeIdr: number | null;
+  };
 }
 
 Deno.serve(async (req) => {
@@ -95,13 +105,29 @@ Deno.serve(async (req) => {
 });
 
 function formatSnapshotContext(snapshot: BudgetSnapshot): string {
-  return snapshot.envelopes.map((e) => {
+  const freedom = snapshot.freedom
+    ? `FREEDOM / CASH:
+- Cash on hand: ${snapshot.freedom.cashIdr} IDR
+- Earmarked in envelopes: ${snapshot.freedom.earmarkedTotalIdr} IDR
+- Investable now: ${snapshot.freedom.investableIdr} IDR${snapshot.freedom.overcommitted ? " (OVERCOMMITTED)" : ""}
+- Avg monthly income (recent): ${snapshot.freedom.avgIncomeIdr ?? "unknown"} IDR
+
+`
+    : "";
+
+  const envelopes = snapshot.envelopes.map((e) => {
     const history = e.monthHistory
       .map((m) => `${m.month}: ${m.spentIdr} IDR spent`)
       .join("; ");
     const avg = e.avgMonthlySpendIdr ?? 0;
-    return `- ${e.name}: monthly budget ${e.monthlyBudgetIdr} IDR, avg monthly spend ${avg} IDR, lifetime spent ${e.totalSpentIdr}, balance ${e.balanceIdr}. Last 12 months: ${history}`;
+    const kind = e.kind ?? "monthly";
+    const target = e.targetAmountIdr
+      ? `, target ${e.targetAmountIdr} IDR due ${e.dueDate ?? "n/a"}`
+      : "";
+    return `- ${e.name} [${kind}]: monthly ${e.monthlyBudgetIdr} IDR, avg spend ${avg} IDR, lifetime spent ${e.totalSpentIdr}, balance ${e.balanceIdr}${target}. Last 12 months: ${history}`;
   }).join("\n");
+
+  return freedom + envelopes;
 }
 
 function buildChatPrompt(
@@ -117,6 +143,7 @@ function buildChatPrompt(
     .join("\n");
 
   return `You are a warm, concise household budget assistant for a family using envelope budgeting in Indonesia (amounts in IDR — whole rupiah).
+Your tone is about freedom and permission — help them feel free to spend, vacation, and invest when the numbers support it. Not restrictive.
 
 BUDGET DATA:
 ${context}
@@ -126,7 +153,8 @@ ${transcript || "(none)"}
 
 ${userName} asks: ${question}
 
-Answer helpfully using the budget data. Be specific with envelope names and amounts when relevant.
+Answer helpfully using the budget data. Prefer answering “can we invest?” and “can we take this trip?” using investable cash and sinking-fund balances when present.
+Be specific with envelope names and amounts when relevant.
 If a transfer between envelopes would help, include 0-1 suggestion.
 
 Respond ONLY with valid JSON (no markdown fences):

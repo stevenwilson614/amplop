@@ -18,16 +18,27 @@ import type { DbUser, Envelope } from "@/lib/types";
 
 const CURRENCIES = Object.keys(CURRENCY_DECIMALS);
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { dbUser, household, fxRates, refetch } = useHousehold();
   const [displayName, setDisplayName] = useState(dbUser?.display_name ?? "");
   const [displayCurrency, setDisplayCurrency] = useState(dbUser?.display_currency ?? "IDR");
   const [whaleFactsEnabled, setWhaleFactsEnabled] = useState(dbUser?.whale_facts_enabled !== false);
+  const [budgetYearStart, setBudgetYearStart] = useState(household?.budget_year_start_month ?? 1);
+  const [yearSaving, setYearSaving] = useState(false);
 
   useEffect(() => {
     setWhaleFactsEnabled(dbUser?.whale_facts_enabled !== false);
   }, [dbUser?.whale_facts_enabled]);
+
+  useEffect(() => {
+    setBudgetYearStart(household?.budget_year_start_month ?? 1);
+  }, [household?.budget_year_start_month]);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -198,6 +209,18 @@ export default function SettingsPage() {
     setSaving(false);
   }
 
+  async function handleSaveBudgetYear(e: React.FormEvent) {
+    e.preventDefault();
+    if (!household) return;
+    setYearSaving(true);
+    await supabase
+      .from("households")
+      .update({ budget_year_start_month: budgetYearStart })
+      .eq("id", household.id);
+    await refetch();
+    setYearSaving(false);
+  }
+
   async function handleWhaleToggle(enabled: boolean) {
     if (!dbUser) return;
     setWhaleFactsEnabled(enabled);
@@ -274,6 +297,44 @@ export default function SettingsPage() {
               {saving ? "saving..." : "save profile"}
             </button>
           </form>
+        </section>
+
+        <section>
+          <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">budget year</p>
+          <form onSubmit={handleSaveBudgetYear} className="space-y-3">
+            <div className="space-y-1">
+              <label className="font-mono text-xs text-brand-text-muted">starts in</label>
+              <select
+                value={budgetYearStart}
+                onChange={(e) => setBudgetYearStart(Number(e.target.value))}
+                className={inputCls}
+              >
+                {MONTH_NAMES.map((name, idx) => (
+                  <option key={name} value={idx + 1}>{name}</option>
+                ))}
+              </select>
+              <p className="font-mono text-[11px] text-brand-text-muted leading-relaxed">
+                Affects save-for / annual progress (default January for lease renewal). Monthly envelopes still reset each calendar month.
+              </p>
+            </div>
+            <button
+              type="submit"
+              disabled={yearSaving}
+              className="w-full rounded-lg bg-brand-accent py-3 font-mono text-sm font-semibold text-brand-text disabled:opacity-50"
+            >
+              {yearSaving ? "saving..." : "save budget year"}
+            </button>
+          </form>
+        </section>
+
+        <section>
+          <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">quick log</p>
+          <Link
+            to="/voice"
+            className="block rounded-xl border border-brand-border bg-brand-primary p-4 font-mono text-sm text-brand-accent"
+          >
+            Type expenses like “45.000rp ambrogio” →
+          </Link>
         </section>
 
         {/* Indonesia animals */}

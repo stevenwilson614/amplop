@@ -4,6 +4,7 @@ import { useTransactionModal } from "@/context/TransactionModalContext";
 const tabs = [
   { path: "/envelopes", label: "Envelope", Icon: EnvelopeIcon },
   { path: "/transactions", label: "Txns", Icon: ListIcon },
+  { path: "/voice", label: "Quick", Icon: QuickIcon },
   { path: "/insights", label: "Insights", Icon: SparkIcon },
   { path: "/settings", label: "More", Icon: GridIcon },
 ];
@@ -72,6 +73,21 @@ function ListIcon({ active }: { active: boolean }) {
       <circle cx="4" cy="6" r="1.2" fill={stroke} />
       <circle cx="4" cy="12" r="1.2" fill={stroke} />
       <circle cx="4" cy="18" r="1.2" fill={stroke} />
+    </svg>
+  );
+}
+
+function QuickIcon({ active }: { active: boolean }) {
+  const stroke = active ? "#57A773" : "#8A939E";
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 7h16M4 12h10M4 17h13"
+        stroke={stroke}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path d="M16 10l4 2-4 2v-4z" fill={stroke} />
     </svg>
   );
 }

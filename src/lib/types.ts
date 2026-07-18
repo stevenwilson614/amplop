@@ -1,8 +1,11 @@
 export interface Household {
   id: string;
   name: string;
+  budget_year_start_month?: number;
   created_at: string;
 }
+
+export type EnvelopeKind = "monthly" | "sinking";
 
 export interface DbUser {
   id: string;
@@ -30,10 +33,27 @@ export interface Envelope {
   name: string;
   budget_amount: number;
   budget_currency: string;
+  kind?: EnvelopeKind;
+  target_amount?: number | null;
+  target_currency?: string | null;
+  due_date?: string | null;
   carryover_idr?: number;
   carryover_month?: string | null;
   sort_order: number;
   drawn_idr_snapshot: number;
+  created_at: string;
+}
+
+export interface CashSnapshot {
+  id: string;
+  household_id: string;
+  as_of_date: string;
+  amount: number;
+  currency: string;
+  amount_idr_snapshot: number;
+  fx_rate_snapshot: number;
+  notes: string | null;
+  created_by: string;
   created_at: string;
 }
 
