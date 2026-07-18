@@ -1,5 +1,5 @@
 import type { InvestableSnapshot } from "@/lib/investableSurplus";
-import { formatDualAmount } from "@/lib/investableSurplus";
+import { formatDualAmount, needsMonthlySnapshot } from "@/lib/investableSurplus";
 import type { FxRates } from "@/lib/types";
 
 interface Props {
@@ -22,6 +22,7 @@ export default function FreedomPanel({
       : formatDualAmount(snapshot.cashDeltaIdr, displayCurrency, fxRates);
   const income =
     avgIncomeIdr === null ? null : formatDualAmount(avgIncomeIdr, displayCurrency, fxRates);
+  const staleSnapshot = needsMonthlySnapshot(snapshot.latestSnapshot);
 
   return (
     <div className="mx-4 mt-3 rounded-2xl border border-brand-border bg-brand-bg p-4">
@@ -38,11 +39,22 @@ export default function FreedomPanel({
         <button
           type="button"
           onClick={onLogCash}
-          className="rounded-full bg-brand-accent px-3 py-1.5 font-mono text-xs font-semibold text-white"
+          className={`rounded-full px-3 py-1.5 font-mono text-xs font-semibold ${
+            staleSnapshot
+              ? "bg-amber-500 text-white"
+              : "bg-brand-accent text-white"
+          }`}
         >
-          {snapshot.latestSnapshot ? "update" : "log cash"}
+          {staleSnapshot ? "log this month" : snapshot.latestSnapshot ? "update" : "log cash"}
         </button>
       </div>
+
+      {staleSnapshot && snapshot.latestSnapshot && (
+        <p className="-mt-1 mb-2 font-mono text-[11px] text-amber-600">
+          cash last logged {snapshot.latestSnapshot.as_of_date} — log this month to keep the
+          month-to-month delta going
+        </p>
+      )}
 
       {snapshot.latestSnapshot && (
         <div className="space-y-2 font-mono text-xs">

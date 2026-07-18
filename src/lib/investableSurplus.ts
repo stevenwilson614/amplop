@@ -59,6 +59,12 @@ export function computeInvestable(args: {
   };
 }
 
+/** True when the latest snapshot is from a previous calendar month (local time). */
+export function needsMonthlySnapshot(latest: CashSnapshot | null, now = new Date()): boolean {
+  if (!latest) return false;
+  return latest.as_of_date.slice(0, 7) < now.toLocaleDateString("en-CA").slice(0, 7);
+}
+
 export function formatDualAmount(
   amountIdr: number,
   displayCurrency: string,

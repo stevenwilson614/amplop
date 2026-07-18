@@ -18,6 +18,7 @@ import {
 import { useTransactionModal } from "@/context/TransactionModalContext";
 import TripPlannerSheet from "@/components/trips/TripPlannerSheet";
 import TripLineItemSheet from "@/components/trips/TripLineItemSheet";
+import TripSettleSheet from "@/components/trips/TripSettleSheet";
 import { syncTripDailyDraws, deleteTripDrawTransactions } from "@/lib/tripDraws";
 import EnvelopeDetailSheet from "@/components/envelopes/EnvelopeDetailSheet";
 import EditBudgetMode from "@/components/envelopes/EditBudgetMode";
@@ -40,6 +41,7 @@ export default function EnvelopesPage() {
   const [sheetDefaultKind, setSheetDefaultKind] = useState<EnvelopeKind>("monthly");
   const [tripSheetOpen, setTripSheetOpen] = useState(false);
   const [tripLineItemSheetOpen, setTripLineItemSheetOpen] = useState(false);
+  const [tripSettleSheetOpen, setTripSettleSheetOpen] = useState(false);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [tripEnvelopes, setTripEnvelopes] = useState<Envelope[]>([]);
   const [monthSpentMap, setMonthSpentMap] = useState<Record<string, number>>({});
@@ -432,6 +434,17 @@ export default function EnvelopesPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => setTripSettleSheetOpen(true)}
+                  className={
+                    tripHasEnded(activeTrip)
+                      ? "rounded-lg bg-brand-accent px-2 py-1 text-xs font-semibold text-white"
+                      : "rounded-lg border border-brand-border px-2 py-1 text-xs font-semibold text-brand-text-muted"
+                  }
+                >
+                  settle up
+                </button>
+                <button
+                  type="button"
                   onClick={() => setTripLineItemSheetOpen(true)}
                   className="rounded-lg border border-brand-border px-2 py-1 text-xs font-semibold text-brand-text-muted"
                 >
@@ -517,6 +530,24 @@ export default function EnvelopesPage() {
         nextSortOrder={tripEnvelopes.length}
       />
 
+      <TripSettleSheet
+        open={tripSettleSheetOpen}
+        onClose={() => setTripSettleSheetOpen(false)}
+        onSettled={() => {
+          load();
+          refetch();
+          window.dispatchEvent(new CustomEvent("amplop:data-changed"));
+        }}
+        householdId={household?.id ?? ""}
+        userId={dbUser?.id ?? ""}
+        trip={activeTrip}
+        tripEnvelopes={tripEnvelopes}
+        householdEnvelopes={envelopes}
+        balancesById={balanceIdrById}
+        fxRates={fxRates}
+        displayCurrency={dc}
+      />
+
       <EnvelopeDetailSheet
         open={detailOpen}
         envelope={detailEnvelope}
@@ -560,6 +591,10 @@ export default function EnvelopesPage() {
       />
     </div>
   );
+}
+
+function tripHasEnded(trip: Trip): boolean {
+  return trip.end_date < new Date().toLocaleDateString("en-CA");
 }
 
 interface Group { category: Category | null; items: Envelope[] }

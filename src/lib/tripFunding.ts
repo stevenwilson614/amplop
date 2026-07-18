@@ -94,7 +94,7 @@ export function computeTripFunding(input: TripFundingInput): TripFundingSummary 
   };
 }
 
-function scoreCoverEnvelope(env: Envelope): number {
+export function scoreCoverEnvelope(env: Envelope): number {
   let score = 0;
   if (isSinking(env)) score += 50;
   if (/vacation|amerika|america|trip|home assignment|fun/i.test(env.name)) score += 100;

@@ -64,6 +64,7 @@ export default function TransactionEntry({
   const [payeeHistoryMap, setPayeeHistoryMap] = useState<Map<string, string>>(new Map());
   const [lockEnvelope, setLockEnvelope] = useState(false);
   const [quickText, setQuickText] = useState("");
+  const [quickMsg, setQuickMsg] = useState("");
 
   const regularEnvelopes = useMemo(
     () => envelopes.filter((e) => !e.trip_id),
@@ -110,6 +111,7 @@ export default function TransactionEntry({
     setLockEnvelope(Boolean(defaultEnvelope?.id));
     setCurrency(currencyForEnvelope(env, fallbackCurrency));
     setQuickText("");
+    setQuickMsg("");
   }, [open, defaultEnvelope, envelopes, prefill, dbUser.display_currency]);
 
   function applyQuickText() {
@@ -127,6 +129,45 @@ export default function TransactionEntry({
     if (match) {
       setEnvelopeId(match.id);
       setSplits([{ envelope_id: match.id, value: "" }]);
+    }
+  }
+
+  /** One-tap: parse, match envelope, save immediately. Falls back to prefill when unmatched. */
+  async function quickLogNow() {
+    const parsed = parseQuickExpense(quickText);
+    if (!parsed) {
+      setError("couldn’t parse — try “45.000rp ambrogio”");
+      return;
+    }
+    const match = resolveEnvelopeForPayee(parsed.merchant, orderedEnvelopes, payeeHistoryMap);
+    if (!match) {
+      applyQuickText();
+      setQuickMsg("new payee — pick the envelope once, next time it logs itself");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setQuickMsg("");
+    try {
+      await saveTransaction({
+        householdId: household.id,
+        userId: dbUser.id,
+        txType: "expense",
+        amountMinor: parsed.amountMinor,
+        currency: parsed.currency,
+        date: today(),
+        merchantName: parsed.merchant,
+        notes: null,
+        allocations: [{ envelope_id: match.id, amountMinor: parsed.amountMinor }],
+        fxRates,
+      });
+      setQuickText("");
+      setQuickMsg(`logged ${format(parsed.amountMinor, parsed.currency)} → ${match.name}`);
+      onSaved();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -344,27 +385,33 @@ export default function TransactionEntry({
 
       <form onSubmit={handleSave} className="flex-1 overflow-auto bg-brand-bg pb-10">
         {txType === "expense" && (
-          <div className="mx-4 mt-4 flex gap-2">
-            <input
-              type="text"
-              value={quickText}
-              onChange={(e) => setQuickText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  applyQuickText();
-                }
-              }}
-              placeholder="45.000rp ambrogio"
-              className="flex-1 rounded-xl border border-brand-border bg-brand-surface px-3 py-2 font-mono text-sm text-brand-text placeholder:text-brand-text-muted focus:outline-none focus:ring-2 focus:ring-brand-accent"
-            />
-            <button
-              type="button"
-              onClick={applyQuickText}
-              className="rounded-xl bg-brand-accent px-3 py-2 font-mono text-xs font-semibold text-white"
-            >
-              parse
-            </button>
+          <div className="mx-4 mt-4">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={quickText}
+                onChange={(e) => setQuickText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    quickLogNow();
+                  }
+                }}
+                placeholder="45.000rp ambrogio"
+                className="flex-1 rounded-xl border border-brand-border bg-brand-surface px-3 py-2 font-mono text-sm text-brand-text placeholder:text-brand-text-muted focus:outline-none focus:ring-2 focus:ring-brand-accent"
+              />
+              <button
+                type="button"
+                onClick={quickLogNow}
+                disabled={loading}
+                className="rounded-xl bg-brand-accent px-3 py-2 font-mono text-xs font-semibold text-white disabled:opacity-40"
+              >
+                {loading ? "..." : "log it"}
+              </button>
+            </div>
+            {quickMsg && (
+              <p className="mt-1 font-mono text-xs text-green-700">{quickMsg}</p>
+            )}
           </div>
         )}
 
