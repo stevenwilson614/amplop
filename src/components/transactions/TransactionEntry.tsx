@@ -111,8 +111,13 @@ export default function TransactionEntry({
     setLockEnvelope(Boolean(defaultEnvelope?.id));
     setCurrency(currencyForEnvelope(env, fallbackCurrency));
     setQuickText("");
-    setQuickMsg("");
   }, [open, defaultEnvelope, envelopes, prefill, dbUser.display_currency]);
+
+  // Separate from the reset effect above: that one re-fires when envelopes
+  // reload after a quick log, which would wipe the confirmation instantly.
+  useEffect(() => {
+    if (open) setQuickMsg("");
+  }, [open]);
 
   function applyQuickText() {
     const parsed = parseQuickExpense(quickText);
