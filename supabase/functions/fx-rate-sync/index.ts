@@ -56,7 +56,15 @@ async function fetchFrankfurter(): Promise<{ usdToIdr: number; date: string; rat
   }
 }
 
-Deno.serve(async (_req) => {
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const openEr = await fetchOpenErApi();
     const frankfurter = openEr ? null : await fetchFrankfurter();
@@ -104,13 +112,13 @@ Deno.serve(async (_req) => {
 
     return new Response(
       JSON.stringify({ ok: true, pairs: rows.length, usd_idr: usdToIdr, date: sourceDate }),
-      { headers: { "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
     console.error("fx-rate-sync failed:", err);
     return new Response(
       JSON.stringify({ ok: false, error: String(err) }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

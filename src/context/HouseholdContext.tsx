@@ -28,13 +28,17 @@ const Ctx = createContext<HouseholdCtx>({
 });
 
 async function triggerFxSync() {
-  await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fx-rate-sync`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-    },
-  });
+  try {
+    await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fx-rate-sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+    });
+  } catch (err) {
+    console.warn("fx sync failed; continuing with stored rates", err);
+  }
 }
 
 export function HouseholdProvider({ children }: { children: ReactNode }) {
@@ -61,6 +65,16 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   };
 
   const load = useCallback(async () => {
+    try {
+      await loadInner();
+    } catch (err) {
+      console.error("household load failed", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadInner = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
