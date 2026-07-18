@@ -1,5 +1,6 @@
 import type { CashSnapshot, Envelope, FxRates } from "@/lib/types";
 import { convert, format } from "@/lib/currency";
+import { snapshotTotalIdr } from "@/lib/cashSnapshot";
 
 export interface EnvelopeBalanceRow {
   envelope: Envelope;
@@ -22,6 +23,7 @@ export interface InvestableSnapshot {
 export function computeInvestable(args: {
   snapshots: CashSnapshot[];
   balances: EnvelopeBalanceRow[];
+  fxRates?: FxRates;
 }): InvestableSnapshot {
   const sorted = [...args.snapshots].sort((a, b) =>
     b.as_of_date.localeCompare(a.as_of_date) || b.created_at.localeCompare(a.created_at)
@@ -40,10 +42,10 @@ export function computeInvestable(args: {
     }
   }
 
-  const cashIdr = latest?.amount_idr_snapshot ?? 0;
+  const cashIdr = latest ? snapshotTotalIdr(latest, args.fxRates) : 0;
   const earmarkedTotalIdr = earmarkedMonthly + earmarkedSinking;
   const investableIdr = cashIdr - earmarkedTotalIdr;
-  const previousCashIdr = previous?.amount_idr_snapshot ?? null;
+  const previousCashIdr = previous ? snapshotTotalIdr(previous, args.fxRates) : null;
 
   return {
     cashIdr,

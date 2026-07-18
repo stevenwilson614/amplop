@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { InvestableSnapshot } from "@/lib/investableSurplus";
 import { formatDualAmount, needsMonthlySnapshot } from "@/lib/investableSurplus";
 import type { FxRates } from "@/lib/types";
@@ -7,11 +8,10 @@ interface Props {
   displayCurrency: string;
   fxRates: FxRates;
   avgIncomeIdr: number | null;
-  onLogCash: () => void;
 }
 
 export default function FreedomPanel({
-  snapshot, displayCurrency, fxRates, avgIncomeIdr, onLogCash,
+  snapshot, displayCurrency, fxRates, avgIncomeIdr,
 }: Props) {
   const cash = formatDualAmount(snapshot.cashIdr, displayCurrency, fxRates);
   const investable = formatDualAmount(snapshot.investableIdr, displayCurrency, fxRates);
@@ -36,17 +36,16 @@ export default function FreedomPanel({
             <p className="font-mono text-xs text-brand-text-muted">{cash.secondary}</p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onLogCash}
+        <Link
+          to="/cash"
           className={`rounded-full px-3 py-1.5 font-mono text-xs font-semibold ${
             staleSnapshot
               ? "bg-amber-500 text-white"
               : "bg-brand-accent text-white"
           }`}
         >
-          {staleSnapshot ? "log this month" : snapshot.latestSnapshot ? "update" : "log cash"}
-        </button>
+          {staleSnapshot ? "log this month" : snapshot.latestSnapshot ? "cash →" : "log cash"}
+        </Link>
       </div>
 
       {staleSnapshot && snapshot.latestSnapshot && (

@@ -156,6 +156,7 @@ export default function InsightsPage() {
         envelope,
         balanceIdr: balancesById[envelope.id] ?? 0,
       })),
+      fxRates,
     });
     return {
       cashIdr: snap.cashIdr,

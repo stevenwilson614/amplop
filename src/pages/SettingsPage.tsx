@@ -328,6 +328,16 @@ export default function SettingsPage() {
         </section>
 
         <section>
+          <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">cash tracker</p>
+          <Link
+            to="/cash"
+            className="block rounded-xl border border-brand-border bg-brand-primary p-4 font-mono text-sm text-brand-accent"
+          >
+            Log business / personal / savings cash (USD) →
+          </Link>
+        </section>
+
+        <section>
           <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">quick log</p>
           <Link
             to="/voice"

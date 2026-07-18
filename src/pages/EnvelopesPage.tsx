@@ -24,7 +24,6 @@ import EnvelopeDetailSheet from "@/components/envelopes/EnvelopeDetailSheet";
 import EditBudgetMode from "@/components/envelopes/EditBudgetMode";
 import CategorySheet from "@/components/envelopes/CategorySheet";
 import FreedomPanel from "@/components/freedom/FreedomPanel";
-import CashSnapshotSheet from "@/components/freedom/CashSnapshotSheet";
 import SinkingFundsSection from "@/components/envelopes/SinkingFundsSection";
 import { computeInvestable } from "@/lib/investableSurplus";
 import { isSinking } from "@/lib/sinkingFunds";
@@ -53,7 +52,6 @@ export default function EnvelopesPage() {
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [cashSnapshots, setCashSnapshots] = useState<CashSnapshot[]>([]);
-  const [cashSheetOpen, setCashSheetOpen] = useState(false);
   const [avgIncomeIdr, setAvgIncomeIdr] = useState<number | null>(null);
 
   useEffect(() => {
@@ -269,8 +267,9 @@ export default function EnvelopesPage() {
           envelope,
           balanceIdr: balanceIdrById[envelope.id] ?? 0,
         })),
+        fxRates: planningFx,
       }),
-    [cashSnapshots, envelopes, balanceIdrById]
+    [cashSnapshots, envelopes, balanceIdrById, planningFx]
   );
 
   // Group monthly envelopes by category (plus uncategorised)
@@ -349,7 +348,6 @@ export default function EnvelopesPage() {
         displayCurrency={dc}
         fxRates={planningFx}
         avgIncomeIdr={avgIncomeIdr}
-        onLogCash={() => setCashSheetOpen(true)}
       />
 
       <div className="flex-1 space-y-6 overflow-auto px-4 pt-3">
@@ -492,16 +490,6 @@ export default function EnvelopesPage() {
         categories={categories}
         envelope={editEnvelope}
         defaultKind={sheetDefaultKind}
-      />
-
-      <CashSnapshotSheet
-        open={cashSheetOpen}
-        onClose={() => setCashSheetOpen(false)}
-        onSaved={() => { load(); refetch(); }}
-        householdId={household?.id ?? ""}
-        userId={dbUser?.id ?? ""}
-        fxRates={fxRates}
-        defaultCurrency={dc}
       />
 
       <TripPlannerSheet

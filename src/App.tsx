@@ -10,6 +10,7 @@ import EnvelopesPage from "@/pages/EnvelopesPage";
 import TransactionsPage from "@/pages/TransactionsPage";
 import InsightsPage from "@/pages/InsightsPage";
 import VoicePage from "@/pages/VoicePage";
+import CashPage from "@/pages/CashPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AnimalFactsPreviewPage from "@/pages/AnimalFactsPreviewPage";
 import BottomNav from "@/components/BottomNav";
@@ -123,6 +124,7 @@ export default function App() {
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/insights" element={<InsightsPage />} />
           <Route path="/voice" element={<VoicePage />} />
+          <Route path="/cash" element={<CashPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>

@@ -50,6 +50,11 @@ export interface CashSnapshot {
   as_of_date: string;
   amount: number;
   currency: string;
+  business_amount?: number;
+  personal_amount?: number;
+  savings_amount?: number;
+  other_amount?: number;
+  other_label?: string | null;
   amount_idr_snapshot: number;
   fx_rate_snapshot: number;
   notes: string | null;
