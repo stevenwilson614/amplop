@@ -4,9 +4,10 @@ import { useHousehold } from "@/context/HouseholdContext";
 import { supabase } from "@/lib/supabase";
 import type { CashSnapshot, Envelope, EnvelopeSpent } from "@/lib/types";
 import { format, convert, getRate, parseToMinorUnits } from "@/lib/currency";
+import FreedomPanel from "@/components/freedom/FreedomPanel";
 import { attachSnapshotDeltas, bucketPayload } from "@/lib/cashSnapshot";
 import { computeInvestable, formatDualAmount } from "@/lib/investableSurplus";
-import { monthlyGhostBudgetIdr, totalMonthlyGhostUsd } from "@/lib/ghostExpenses";
+import { totalMonthlyGhostUsd } from "@/lib/ghostExpenses";
 import { isSinking } from "@/lib/sinkingFunds";
 import {
   monthlyBudgetIdr,
@@ -36,6 +37,7 @@ export default function CashPage() {
   const [snapshots, setSnapshots] = useState<CashSnapshot[]>([]);
   const [allEnvelopes, setAllEnvelopes] = useState<Envelope[]>([]);
   const [balanceIdrById, setBalanceIdrById] = useState<Record<string, number>>({});
+  const [avgIncomeIdr, setAvgIncomeIdr] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -52,7 +54,7 @@ export default function CashPage() {
   const load = useCallback(async () => {
     if (!household) return;
     setLoading(true);
-    const [{ data: cash }, { data: envs }, { data: spent }, historyTxs] = await Promise.all([
+    const [{ data: cash }, { data: envs }, { data: spent }, historyTxs, incomeResp] = await Promise.all([
       supabase
         .from("cash_snapshots")
         .select("*")
@@ -63,6 +65,13 @@ export default function CashPage() {
       supabase.from("envelopes").select("*").eq("household_id", household.id).is("trip_id", null),
       supabase.rpc("get_envelope_spent"),
       fetchAllHouseholdTransactions(household.id),
+      supabase
+        .from("transactions")
+        .select("date, amount_idr_snapshot, tx_type")
+        .eq("household_id", household.id)
+        .eq("tx_type", "income")
+        .order("date", { ascending: false })
+        .limit(200),
     ]);
 
     const envelopes = (envs ?? []) as Envelope[];
@@ -94,6 +103,19 @@ export default function CashPage() {
     setSnapshots((cash as CashSnapshot[]) ?? []);
     setAllEnvelopes(envelopes);
     setBalanceIdrById(balances);
+
+    const incomeByMonth: Record<string, number> = {};
+    for (const tx of incomeResp.data ?? []) {
+      const month = String(tx.date).slice(0, 7);
+      incomeByMonth[month] = (incomeByMonth[month] ?? 0) + Number(tx.amount_idr_snapshot || 0);
+    }
+    const incomeMonths = Object.keys(incomeByMonth).sort().slice(-3);
+    if (incomeMonths.length) {
+      setAvgIncomeIdr(Math.round(incomeMonths.reduce((s, m) => s + incomeByMonth[m], 0) / incomeMonths.length));
+    } else {
+      setAvgIncomeIdr(null);
+    }
+
     setLoading(false);
   }, [household, fxRates]);
 
@@ -187,16 +209,19 @@ export default function CashPage() {
   return (
     <div className="flex min-h-full flex-col bg-brand-surface">
       <div className="sticky top-0 z-10 border-b border-brand-border bg-brand-accent px-4 pb-3 pt-5 text-white">
-        <div className="flex items-center justify-between gap-3">
-          <Link to="/envelopes" className="font-mono text-sm text-white/90">
-            ← envelopes
-          </Link>
-          <h1 className="font-mono text-xl font-semibold tracking-tight">Cash</h1>
-          <div className="w-16" />
-        </div>
+        <h1 className="font-mono text-2xl font-semibold tracking-tight">Cash</h1>
+        <p className="font-mono text-xs text-white/80">business · personal · savings (USD)</p>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-auto px-4 py-4">
+      <FreedomPanel
+        snapshot={investableSnapshot}
+        displayCurrency={dc}
+        fxRates={planningFx}
+        avgIncomeIdr={avgIncomeIdr}
+        hideLink
+      />
+
+      <div className="flex-1 space-y-5 overflow-auto px-4 pb-4">
         <section className="rounded-2xl border border-brand-border bg-brand-bg p-4">
           <p className="font-mono text-[10px] uppercase tracking-wider text-brand-text-muted">total liquid (USD)</p>
           {loading ? (
@@ -232,33 +257,12 @@ export default function CashPage() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-brand-border bg-brand-bg p-4">
-          <div className="mb-3 flex items-baseline justify-between gap-2">
-            <div>
-              <p className="font-mono text-sm font-semibold text-brand-text">Save-for (ghost expenses)</p>
-              <p className="font-mono text-xs text-brand-text-muted">monthly set-asides from cash</p>
-            </div>
-            <p className="font-mono text-sm font-semibold text-brand-text">
-              {format(monthlyGhostUsd, "USD")}/mo
-            </p>
-          </div>
-          <div className="space-y-2">
-            {sinkingEnvelopes.map((env) => {
-              const monthlyIdr = monthlyGhostBudgetIdr(env, planningFx);
-              const monthlyUsd = convert(monthlyIdr, "IDR", "USD", planningFx);
-              return (
-                <div key={env.id} className="flex items-baseline justify-between gap-2 font-mono text-xs">
-                  <span className="text-brand-text">{env.name}</span>
-                  <span className="text-brand-text-muted">
-                    {format(monthlyUsd, "USD")}/mo
-                    {env.due_date && <> · due {env.due_date.slice(0, 7)}</>}
-                  </span>
-                </div>
-              );
-            })}
-            {sinkingEnvelopes.length === 0 && (
-              <p className="font-mono text-xs text-brand-text-muted">no save-for envelopes yet</p>
-            )}
+        <section className="rounded-2xl border border-brand-border bg-brand-bg px-4 py-3">
+          <div className="flex items-baseline justify-between gap-2 font-mono text-xs">
+            <span className="text-brand-text-muted">save-for set-asides</span>
+            <Link to="/save-for" className="text-brand-accent">
+              {format(monthlyGhostUsd, "USD")}/mo →
+            </Link>
           </div>
         </section>
 

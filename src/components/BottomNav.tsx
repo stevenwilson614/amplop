@@ -2,10 +2,10 @@ import { Link, useLocation } from "react-router-dom";
 import { useTransactionModal } from "@/context/TransactionModalContext";
 
 const tabs = [
-  { path: "/envelopes", label: "Envelope", Icon: EnvelopeIcon },
+  { path: "/envelopes", label: "Daily", Icon: EnvelopeIcon },
+  { path: "/save-for", label: "Save", Icon: PiggyIcon },
+  { path: "/cash", label: "Cash", Icon: CashIcon },
   { path: "/transactions", label: "Txns", Icon: ListIcon },
-  { path: "/voice", label: "Quick", Icon: QuickIcon },
-  { path: "/insights", label: "Insights", Icon: SparkIcon },
   { path: "/settings", label: "More", Icon: GridIcon },
 ];
 
@@ -65,6 +65,27 @@ function EnvelopeIcon({ active }: { active: boolean }) {
   );
 }
 
+function PiggyIcon({ active }: { active: boolean }) {
+  const stroke = active ? "#57A773" : "#8A939E";
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <ellipse cx="12" cy="13" rx="7" ry="5" stroke={stroke} strokeWidth="1.8" />
+      <circle cx="16" cy="11" r="1" fill={stroke} />
+      <path d="M6 13H4M19 12l2-1" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CashIcon({ active }: { active: boolean }) {
+  const stroke = active ? "#57A773" : "#8A939E";
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="6" width="18" height="12" rx="2" stroke={stroke} strokeWidth="1.8" />
+      <circle cx="12" cy="12" r="2.5" stroke={stroke} strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 function ListIcon({ active }: { active: boolean }) {
   const stroke = active ? "#57A773" : "#8A939E";
   return (
@@ -73,36 +94,6 @@ function ListIcon({ active }: { active: boolean }) {
       <circle cx="4" cy="6" r="1.2" fill={stroke} />
       <circle cx="4" cy="12" r="1.2" fill={stroke} />
       <circle cx="4" cy="18" r="1.2" fill={stroke} />
-    </svg>
-  );
-}
-
-function QuickIcon({ active }: { active: boolean }) {
-  const stroke = active ? "#57A773" : "#8A939E";
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 7h16M4 12h10M4 17h13"
-        stroke={stroke}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path d="M16 10l4 2-4 2v-4z" fill={stroke} />
-    </svg>
-  );
-}
-
-function SparkIcon({ active }: { active: boolean }) {
-  const stroke = active ? "#57A773" : "#8A939E";
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 3l1.4 4.6L18 9l-4.6 1.4L12 15l-1.4-4.6L6 9l4.6-1.4L12 3z"
-        stroke={stroke}
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15z" stroke={stroke} strokeWidth="1.4" strokeLinejoin="round" />
     </svg>
   );
 }

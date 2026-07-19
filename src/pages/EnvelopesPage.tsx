@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useHousehold } from "@/context/HouseholdContext";
 import { supabase } from "@/lib/supabase";
-import type { Envelope, Category, EnvelopeSpent, Trip, CashSnapshot, EnvelopeKind } from "@/lib/types";
+import type { Envelope, Category, EnvelopeSpent, Trip, EnvelopeKind } from "@/lib/types";
 import EnvelopeCard from "@/components/envelopes/EnvelopeCard";
 import EnvelopeSheet from "@/components/envelopes/EnvelopeSheet";
 import { convert, format } from "@/lib/currency";
@@ -23,9 +23,6 @@ import { syncTripDailyDraws, deleteTripDrawTransactions } from "@/lib/tripDraws"
 import EnvelopeDetailSheet from "@/components/envelopes/EnvelopeDetailSheet";
 import EditBudgetMode from "@/components/envelopes/EditBudgetMode";
 import CategorySheet from "@/components/envelopes/CategorySheet";
-import FreedomPanel from "@/components/freedom/FreedomPanel";
-import SinkingFundsSection from "@/components/envelopes/SinkingFundsSection";
-import { computeInvestable } from "@/lib/investableSurplus";
 import { isSinking } from "@/lib/sinkingFunds";
 import { formatUsdIdrLabel } from "@/lib/fxAverage";
 
@@ -51,8 +48,6 @@ export default function EnvelopesPage() {
   const [editModeOpen, setEditModeOpen] = useState(false);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
-  const [cashSnapshots, setCashSnapshots] = useState<CashSnapshot[]>([]);
-  const [avgIncomeIdr, setAvgIncomeIdr] = useState<number | null>(null);
 
   useEffect(() => {
     if (!plusMenuOpen) return;
@@ -87,7 +82,7 @@ export default function EnvelopesPage() {
     monthStart.setDate(1);
     const monthStartIso = monthStart.toLocaleDateString("en-CA");
 
-    const [{ data: cats }, { data: envs }, { data: spent }, tripEnvsResp, historyTxs, cashResp, incomeTxs] =
+    const [{ data: cats }, { data: envs }, { data: spent }, tripEnvsResp, historyTxs] =
       await Promise.all([
         supabase.from("categories").select("*").eq("household_id", household.id).order("sort_order"),
         supabase.from("envelopes").select("*").eq("household_id", household.id).is("trip_id", null).order("sort_order"),
@@ -96,25 +91,10 @@ export default function EnvelopesPage() {
           ? supabase.from("envelopes").select("*").eq("household_id", household.id).eq("trip_id", currentTrip.id).is("parent_envelope_id", null).order("sort_order")
           : Promise.resolve({ data: [] as Envelope[] }),
         fetchAllHouseholdTransactions(household.id),
-        supabase
-          .from("cash_snapshots")
-          .select("*")
-          .eq("household_id", household.id)
-          .order("as_of_date", { ascending: false })
-          .order("created_at", { ascending: false })
-          .limit(24),
-        supabase
-          .from("transactions")
-          .select("date, amount_idr_snapshot, tx_type")
-          .eq("household_id", household.id)
-          .eq("tx_type", "income")
-          .order("date", { ascending: false })
-          .limit(200),
       ]);
     setCategories(cats ?? []);
     setEnvelopes(envs ?? []);
     setTripEnvelopes(tripEnvsResp.data ?? []);
-    setCashSnapshots((cashResp.data as CashSnapshot[]) ?? []);
     const map: Record<string, number> = {};
     for (const row of (spent as EnvelopeSpent[] ?? [])) {
       map[row.envelope_id] = Number(row.spent_idr);
@@ -137,19 +117,6 @@ export default function EnvelopesPage() {
       }
     }
     setMonthSpentMap(monthMap);
-
-    const incomeByMonth: Record<string, number> = {};
-    for (const tx of incomeTxs.data ?? []) {
-      const month = String(tx.date).slice(0, 7);
-      incomeByMonth[month] = (incomeByMonth[month] ?? 0) + Number(tx.amount_idr_snapshot || 0);
-    }
-    const incomeMonths = Object.keys(incomeByMonth).sort().slice(-3);
-    if (incomeMonths.length) {
-      const total = incomeMonths.reduce((s, m) => s + incomeByMonth[m], 0);
-      setAvgIncomeIdr(Math.round(total / incomeMonths.length));
-    } else {
-      setAvgIncomeIdr(null);
-    }
   }, [household, dbUser, fxRates]);
 
   useEffect(() => { load(); }, [load]);
@@ -210,7 +177,6 @@ export default function EnvelopesPage() {
   const dc = dbUser?.display_currency ?? "IDR";
   const planningFx = Object.keys(fxRatesAvg30d).length ? fxRatesAvg30d : fxRates;
   const monthlyEnvelopes = useMemo(() => envelopes.filter((e) => !isSinking(e)), [envelopes]);
-  const sinkingEnvelopes = useMemo(() => envelopes.filter((e) => isSinking(e)), [envelopes]);
 
   const totalBudgetIdr = monthlyEnvelopes.reduce((sum, env) => {
     const budgetIdr = env.budget_currency === "IDR"
@@ -241,7 +207,7 @@ export default function EnvelopesPage() {
 
   const balanceIdrById = useMemo(() => {
     const next: Record<string, number> = {};
-    for (const env of envelopes) {
+    for (const env of monthlyEnvelopes) {
       const monthly = monthlyBudgetIdr(env, fxRates);
       const spent = spentMap[env.id] ?? 0;
       const perf = perfMap[env.id];
@@ -257,20 +223,7 @@ export default function EnvelopesPage() {
       });
     }
     return next;
-  }, [envelopes, spentMap, fxRates, perfMap]);
-
-  const investable = useMemo(
-    () =>
-      computeInvestable({
-        snapshots: cashSnapshots,
-        balances: envelopes.map((envelope) => ({
-          envelope,
-          balanceIdr: balanceIdrById[envelope.id] ?? 0,
-        })),
-        fxRates: planningFx,
-      }),
-    [cashSnapshots, envelopes, balanceIdrById, planningFx]
-  );
+  }, [monthlyEnvelopes, spentMap, fxRates, perfMap]);
 
   // Group monthly envelopes by category (plus uncategorised)
   const grouped = groupByCategory(monthlyEnvelopes, categories);
@@ -286,7 +239,7 @@ export default function EnvelopesPage() {
           >
             Edit
           </button>
-          <h1 className="font-mono text-2xl font-semibold tracking-tight">Envelopes</h1>
+          <h1 className="font-mono text-2xl font-semibold tracking-tight">Daily</h1>
           <div className="relative">
             <button
               onClick={(e) => { e.stopPropagation(); setPlusMenuOpen((v) => !v); }}
@@ -306,13 +259,6 @@ export default function EnvelopesPage() {
                   onClick={() => { setPlusMenuOpen(false); openAdd("monthly"); }}
                 >
                   Add Envelope
-                </button>
-                <button
-                  type="button"
-                  className="block w-full px-4 py-3 text-left text-sm text-brand-text hover:bg-brand-bg"
-                  onClick={() => { setPlusMenuOpen(false); openAdd("sinking"); }}
-                >
-                  Add Save-for
                 </button>
                 <button
                   type="button"
@@ -343,27 +289,8 @@ export default function EnvelopesPage() {
         </div>
       </div>
 
-      <FreedomPanel
-        snapshot={investable}
-        displayCurrency={dc}
-        fxRates={planningFx}
-        avgIncomeIdr={avgIncomeIdr}
-      />
-
       <div className="flex-1 space-y-6 overflow-auto px-4 pt-3">
-        <SinkingFundsSection
-          envelopes={sinkingEnvelopes}
-          balanceIdrById={balanceIdrById}
-          spentMap={spentMap}
-          perfMap={perfMap}
-          displayCurrency={dc}
-          fxRates={planningFx}
-          budgetYearStartMonth={household?.budget_year_start_month ?? 1}
-          onOpen={openDetail}
-          onAdd={() => openAdd("sinking")}
-        />
-
-        {grouped.length === 0 && sinkingEnvelopes.length === 0 && (
+        {grouped.length === 0 && (
           <div className="text-center py-12">
             <p className="font-mono text-sm text-brand-text-muted">no envelopes yet</p>
             <button onClick={() => openAdd("monthly")} className="mt-3 font-mono text-sm text-brand-accent">+ add envelope</button>
@@ -564,7 +491,7 @@ export default function EnvelopesPage() {
         onClose={() => setEditModeOpen(false)}
         onSaved={() => { load(); refetch(); }}
         onAddEnvelope={openAdd}
-        envelopes={envelopes}
+        envelopes={monthlyEnvelopes}
         categories={categories}
         displayCurrency={dc}
         fxRates={fxRates}

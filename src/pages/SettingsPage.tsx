@@ -328,23 +328,27 @@ export default function SettingsPage() {
         </section>
 
         <section>
-          <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">cash tracker</p>
-          <Link
-            to="/cash"
-            className="block rounded-xl border border-brand-border bg-brand-primary p-4 font-mono text-sm text-brand-accent"
-          >
-            Log business / personal / savings cash (USD) →
-          </Link>
-        </section>
-
-        <section>
-          <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">quick log</p>
-          <Link
-            to="/voice"
-            className="block rounded-xl border border-brand-border bg-brand-primary p-4 font-mono text-sm text-brand-accent"
-          >
-            Type expenses like “45.000rp ambrogio” →
-          </Link>
+          <p className="font-mono text-xs text-brand-text-muted uppercase tracking-widest mb-3">planning</p>
+          <div className="space-y-2">
+            <Link
+              to="/save-for"
+              className="block rounded-xl border border-brand-border bg-brand-primary p-4 font-mono text-sm text-brand-accent"
+            >
+              Save-for envelopes (rent, visa, trips) →
+            </Link>
+            <Link
+              to="/cash"
+              className="block rounded-xl border border-brand-border bg-brand-primary p-4 font-mono text-sm text-brand-accent"
+            >
+              Cash tracker (business / personal / savings) →
+            </Link>
+            <Link
+              to="/insights"
+              className="block rounded-xl border border-brand-border bg-brand-primary p-4 font-mono text-sm text-brand-accent"
+            >
+              Budget insights coach →
+            </Link>
+          </div>
         </section>
 
         {/* Indonesia animals */}

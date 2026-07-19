@@ -8,10 +8,11 @@ interface Props {
   displayCurrency: string;
   fxRates: FxRates;
   avgIncomeIdr: number | null;
+  hideLink?: boolean;
 }
 
 export default function FreedomPanel({
-  snapshot, displayCurrency, fxRates, avgIncomeIdr,
+  snapshot, displayCurrency, fxRates, avgIncomeIdr, hideLink = false,
 }: Props) {
   const cash = formatDualAmount(snapshot.cashIdr, displayCurrency, fxRates);
   const investable = formatDualAmount(snapshot.investableIdr, displayCurrency, fxRates);
@@ -36,16 +37,22 @@ export default function FreedomPanel({
             <p className="font-mono text-xs text-brand-text-muted">{cash.secondary}</p>
           )}
         </div>
-        <Link
-          to="/cash"
-          className={`rounded-full px-3 py-1.5 font-mono text-xs font-semibold ${
-            staleSnapshot
-              ? "bg-amber-500 text-white"
-              : "bg-brand-accent text-white"
-          }`}
-        >
-          {staleSnapshot ? "log this month" : snapshot.latestSnapshot ? "cash →" : "log cash"}
-        </Link>
+        {!hideLink ? (
+          <Link
+            to="/cash"
+            className={`rounded-full px-3 py-1.5 font-mono text-xs font-semibold ${
+              staleSnapshot
+                ? "bg-amber-500 text-white"
+                : "bg-brand-accent text-white"
+            }`}
+          >
+            {staleSnapshot ? "log this month" : snapshot.latestSnapshot ? "cash →" : "log cash"}
+          </Link>
+        ) : staleSnapshot ? (
+          <span className="rounded-full bg-amber-500 px-3 py-1.5 font-mono text-xs font-semibold text-white">
+            log this month
+          </span>
+        ) : null}
       </div>
 
       {staleSnapshot && snapshot.latestSnapshot && (
