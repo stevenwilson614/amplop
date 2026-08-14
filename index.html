@@ -16,28 +16,11 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet" />
     <title>Amplop</title>
     <script>
-      (function () {
-        var FLAG = "amplop_sw_v8";
-        if (!("serviceWorker" in navigator)) return;
-        navigator.serviceWorker.getRegistrations().then(function (regs) {
-          return Promise.all(regs.map(function (r) { return r.unregister(); }));
-        }).then(function () {
-          if ("caches" in window) {
-            return caches.keys().then(function (keys) {
-              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
-            });
-          }
-        }).then(function () {
-          if (!sessionStorage.getItem(FLAG)) {
-            sessionStorage.setItem(FLAG, "1");
-            location.reload();
-            return;
-          }
-          return navigator.serviceWorker.register("/amplop/sw.js?v=8").then(function (reg) {
-            return reg.update();
-          });
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/amplop/sw.js?v=9').then(function (reg) {
+          return reg.update();
         }).catch(function () {});
-      })();
+      }
     </script>
     <script type="module" crossorigin src="/amplop/assets/index-BPNi1OTP.js"></script>
     <link rel="stylesheet" crossorigin href="/amplop/assets/index-D2kWw0vC.css">

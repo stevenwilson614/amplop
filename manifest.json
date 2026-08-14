@@ -2,7 +2,7 @@
   "name": "Amplop",
   "short_name": "Amplop",
   "description": "Household envelope budgeting",
-  "start_url": "/amplop/?v=8",
+  "start_url": "/amplop/",
   "display": "standalone",
   "background_color": "#57A773",
   "theme_color": "#57A773",
